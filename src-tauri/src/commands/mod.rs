@@ -17,7 +17,7 @@ pub async fn list_accounts() -> Result<Vec<Account>, String> {
 #[tauri::command]
 pub async fn add_account(
     app: tauri::AppHandle,
-    _email: String,
+    email: String,
     refresh_token: String,
     provider: Option<crate::models::account::ProviderType>,
     auth_type: Option<crate::models::account::AuthType>,
@@ -47,11 +47,11 @@ pub async fn add_account(
             refresh_token.clone(), // access_token = refresh_token (API Key)
             Some(refresh_token),
             None,
-            Some(_email.clone()),
+            Some(email.clone()),
             None,
             None,
         );
-        (_email, None, token)
+        (email, None, token)
     };
 
     // 2. 添加或更新账号

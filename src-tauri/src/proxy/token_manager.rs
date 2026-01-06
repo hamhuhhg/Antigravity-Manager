@@ -20,7 +20,7 @@ pub struct ProxyToken {
     pub project_id: Option<String>,
     pub subscription_tier: Option<String>, // "FREE" | "PRO" | "ULTRA"
     pub provider: crate::models::account::ProviderType,
-    pub auth_type: crate::models::account::AuthType,
+    pub _auth_type: crate::models::account::AuthType,
     pub base_url: Option<String>,
 }
 
@@ -190,7 +190,7 @@ impl TokenManager {
             project_id,
             subscription_tier,
             provider,
-            auth_type,
+            _auth_type: auth_type,
             base_url,
         }))
     }

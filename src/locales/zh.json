@@ -103,6 +103,7 @@
             "title": "添加新账号",
             "tabs": {
                 "oauth": "OAuth 授权",
+                "provider": "AI Provider",
                 "token": "Refresh Token",
                 "import": "从数据库导入"
             },
@@ -136,6 +137,16 @@
                 "scheme_b_desc": "扫描 ~/.antigravity-agent 目录，批量导入旧版本的账号数据。",
                 "btn_v1": "从 V1 备份批量导入",
                 "btn_custom_db": "从自定义 DB 导入"
+            },
+            "provider": {
+                "adding": "正在添加提供商...",
+                "success": "提供商添加成功！",
+                "error_api_key": "请输入 API Key",
+                "error_email": "请输入邮箱或标识符",
+                "error_base_url": "请输入 API Base URL",
+                "email_label": "邮箱 / 标识符",
+                "api_key_label": "API Key / Token",
+                "base_url_label": "API Base URL"
             },
             "btn_cancel": "取消",
             "btn_confirm": "确认添加",

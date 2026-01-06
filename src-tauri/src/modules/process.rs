@@ -354,7 +354,7 @@ fn get_antigravity_pids() -> Vec<u32> {
 }
 
 /// 关闭 Antigravity 进程
-pub fn close_antigravity(timeout_secs: u64) -> Result<(), String> {
+pub fn close_antigravity(_timeout_secs: u64) -> Result<(), String> {
     crate::modules::logger::log_info("正在关闭 Antigravity...");
 
     #[cfg(target_os = "windows")]

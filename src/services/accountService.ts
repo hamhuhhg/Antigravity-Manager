@@ -26,7 +26,7 @@ export async function addAccount(
     baseUrl?: string
 ): Promise<Account> {
     return await invoke('add_account', {
-        _email: email,
+        email,
         refreshToken,
         provider,
         authType,

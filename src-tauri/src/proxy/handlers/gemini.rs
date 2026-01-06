@@ -103,7 +103,6 @@ pub async fn handle_generate(
             // But Gemini protocol usually only goes to Google. 
             // If we have a custom provider, we might want to map Gemini -> OpenAI or just passthrough.
             // For now, let's assume if it's not Google, it's an OpenAI compatible backend.
-            let base_url = proxy_token.base_url.clone().unwrap_or_else(|| "https://api.openai.com/v1".to_string());
             
             let mut headers = reqwest::header::HeaderMap::new();
             headers.insert(reqwest::header::AUTHORIZATION, reqwest::header::HeaderValue::from_str(&format!("Bearer {}", access_token)).unwrap());

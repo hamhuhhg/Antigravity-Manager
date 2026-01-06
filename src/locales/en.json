@@ -98,6 +98,7 @@
             "title": "Add Account",
             "tabs": {
                 "oauth": "OAuth",
+                "provider": "AI Provider",
                 "token": "Refresh Token",
                 "import": "Import DB"
             },
@@ -131,6 +132,16 @@
                 "scheme_b_desc": "Scan ~/.antigravity-agent for V1 account data.",
                 "btn_v1": "Batch Import V1",
                 "btn_custom_db": "Import Custom DB"
+            },
+            "provider": {
+                "adding": "Adding provider...",
+                "success": "Provider added successfully!",
+                "error_api_key": "Please enter an API Key",
+                "error_email": "Please enter an email/identifier",
+                "error_base_url": "Please enter a Base URL",
+                "email_label": "Email / Identifier",
+                "api_key_label": "API Key / Token",
+                "base_url_label": "API Base URL"
             },
             "btn_cancel": "Cancel",
             "btn_confirm": "Confirm",
