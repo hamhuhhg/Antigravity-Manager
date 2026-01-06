@@ -16,6 +16,7 @@ export interface Account {
     proxy_disabled?: boolean;
     proxy_disabled_reason?: string;
     proxy_disabled_at?: number;
+    supported_models?: string[];
     created_at: number;
     last_used: number;
 }

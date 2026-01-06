@@ -195,9 +195,10 @@ function Accounts() {
         refreshToken: string,
         provider?: string,
         authType?: string,
-        baseUrl?: string
+        baseUrl?: string,
+        supportedModels?: string[]
     ) => {
-        await addAccount(email, refreshToken, provider, authType, baseUrl);
+        await addAccount(email, refreshToken, provider, authType, baseUrl, supportedModels);
     };
 
     const [switchingAccountId, setSwitchingAccountId] = useState<string | null>(null);

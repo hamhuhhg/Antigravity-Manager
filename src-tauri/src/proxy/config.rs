@@ -100,6 +100,9 @@ pub struct ZaiConfig {
     pub models: ZaiModelDefaults,
     #[serde(default)]
     pub mcp: ZaiMcpConfig,
+    /// [NEW] Persisted list of models discovered from z.ai.
+    #[serde(default)]
+    pub available_models: Vec<String>,
 }
 
 impl Default for ZaiConfig {
@@ -112,6 +115,7 @@ impl Default for ZaiConfig {
             model_mapping: HashMap::new(),
             models: ZaiModelDefaults::default(),
             mcp: ZaiMcpConfig::default(),
+            available_models: Vec::new(),
         }
     }
 }

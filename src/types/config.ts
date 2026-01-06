@@ -50,6 +50,7 @@ export interface ZaiConfig {
     model_mapping?: Record<string, string>;
     models: ZaiModelDefaults;
     mcp: ZaiMcpConfig;
+    available_models?: string[];
 }
 
 export interface AppConfig {

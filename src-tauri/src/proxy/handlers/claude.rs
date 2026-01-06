@@ -542,7 +542,7 @@ pub async fn handle_messages(
         let session_id = Some(session_id_str.as_str());
 
         let force_rotate_token = attempt > 0;
-        let proxy_token = match token_manager.get_token(&config.request_type, force_rotate_token, session_id).await {
+        let proxy_token = match token_manager.get_token(&config.request_type, force_rotate_token, session_id, Some(&mapped_model)).await {
             Ok(t) => t,
             Err(e) => {
                 let safe_message = if e.contains("invalid_grant") {
@@ -897,10 +897,12 @@ pub async fn handle_messages(
 pub async fn handle_list_models(State(state): State<AppState>) -> impl IntoResponse {
     use crate::proxy::common::model_mapping::get_all_dynamic_models;
 
+    let supported_models = state.token_manager.get_all_supported_models();
     let model_ids = get_all_dynamic_models(
         &state.openai_mapping,
         &state.custom_mapping,
         &state.anthropic_mapping,
+        supported_models,
     ).await;
 
     let data: Vec<_> = model_ids.into_iter().map(|id| {

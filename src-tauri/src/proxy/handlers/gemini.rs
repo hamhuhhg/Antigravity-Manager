@@ -68,7 +68,7 @@ pub async fn handle_generate(
         let session_id = SessionManager::extract_gemini_session_id(&body, &model_name);
 
         // 关键：在重试尝试 (attempt > 0) 时强制轮换账号
-        let proxy_token = match token_manager.get_token(&config.request_type, attempt > 0, Some(&session_id)).await {
+        let proxy_token = match token_manager.get_token(&config.request_type, attempt > 0, Some(&session_id), Some(&mapped_model)).await {
             Ok(t) => t,
             Err(e) => {
                 return Err((StatusCode::SERVICE_UNAVAILABLE, format!("Token error: {}", e)));
@@ -229,10 +229,12 @@ pub async fn handle_list_models(State(state): State<AppState>) -> Result<impl In
     use crate::proxy::common::model_mapping::get_all_dynamic_models;
 
     // 获取所有动态模型列表（与 /v1/models 一致）
+    let supported_models = state.token_manager.get_all_supported_models();
     let model_ids = get_all_dynamic_models(
         &state.openai_mapping,
         &state.custom_mapping,
         &state.anthropic_mapping,
+        supported_models,
     ).await;
 
     // 转换为 Gemini API 格式
@@ -263,7 +265,7 @@ pub async fn handle_get_model(Path(model_name): Path<String>) -> impl IntoRespon
 
 pub async fn handle_count_tokens(State(state): State<AppState>, Path(_model_name): Path<String>, Json(_body): Json<Value>) -> Result<impl IntoResponse, (StatusCode, String)> {
     let model_group = "gemini";
-    let _token = state.token_manager.get_token(model_group, false, None).await
+    let _token = state.token_manager.get_token(model_group, false, None, Some(&_model_name)).await
         .map_err(|e| (StatusCode::SERVICE_UNAVAILABLE, format!("Token error: {}", e)))?;
     
     Ok(Json(json!({"totalTokens": 0})))

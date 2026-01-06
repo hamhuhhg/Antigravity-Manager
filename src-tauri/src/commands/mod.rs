@@ -22,9 +22,10 @@ pub async fn add_account(
     provider: Option<crate::models::account::ProviderType>,
     auth_type: Option<crate::models::account::AuthType>,
     base_url: Option<String>,
+    supported_models: Option<Vec<String>>,
 ) -> Result<Account, String> {
     let provider = provider.unwrap_or(crate::models::account::ProviderType::Google);
-    let auth_type = auth_type.unwrap_or(crate::models::account::AuthType::OAuth2);
+    let auth_type = auth_type.unwrap_or(crate::models::account::AuthType::ApiKey);
 
     // 1. 获取用户信息和 Token
     let (email, name, token) = if provider == crate::models::account::ProviderType::Google && auth_type == crate::models::account::AuthType::OAuth2 {
@@ -62,6 +63,7 @@ pub async fn add_account(
         provider,
         auth_type,
         base_url,
+        supported_models,
     )?;
 
     modules::logger::log_info(&format!("添加账号成功: {}", account.email));
@@ -770,6 +772,25 @@ pub async fn toggle_proxy_status(
 
     // 5. 更新托盘菜单
     crate::modules::tray::update_tray_menus(&app);
+    Ok(())
+}
 
+/// 更新账号支持的模型列表
+#[tauri::command]
+pub async fn update_account_models(
+    app: tauri::AppHandle,
+    account_id: String,
+    models: Vec<String>,
+) -> Result<(), String> {
+    modules::logger::log_info(&format!("更新账号支持的模型: {}, 数量: {}", account_id, models.len()));
+    let mut account = modules::load_account(&account_id)?;
+    account.supported_models = Some(models);
+    modules::save_account(&account)?;
+    
+    // Reload token pool if running
+    let _ = crate::commands::proxy::reload_proxy_accounts(
+        app.state::<crate::commands::proxy::ProxyServiceState>(),
+    ).await;
+    
     Ok(())
 }

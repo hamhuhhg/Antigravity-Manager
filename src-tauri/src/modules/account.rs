@@ -165,6 +165,7 @@ pub fn add_account(
     provider: crate::models::account::ProviderType,
     auth_type: crate::models::account::AuthType,
     base_url: Option<String>,
+    supported_models: Option<Vec<String>>,
 ) -> Result<Account, String> {
     let _lock = ACCOUNT_INDEX_LOCK.lock().map_err(|e| format!("获取锁失败: {}", e))?;
     let mut index = load_account_index()?;
@@ -185,6 +186,7 @@ pub fn add_account(
     account.provider = provider;
     account.auth_type = auth_type;
     account.base_url = base_url;
+    account.supported_models = supported_models;
     
     // 保存账号数据
     save_account(&account)?;
@@ -216,6 +218,7 @@ pub fn upsert_account(
     provider: crate::models::account::ProviderType,
     auth_type: crate::models::account::AuthType,
     base_url: Option<String>,
+    supported_models: Option<Vec<String>>,
 ) -> Result<Account, String> {
     let _lock = ACCOUNT_INDEX_LOCK.lock().map_err(|e| format!("获取锁失败: {}", e))?;
     let mut index = load_account_index()?;
@@ -243,6 +246,9 @@ pub fn upsert_account(
                 account.name = name.clone();
                 account.auth_type = auth_type;
                 account.base_url = base_url;
+                if supported_models.is_some() {
+                    account.supported_models = supported_models;
+                }
                 // If an account was previously disabled (e.g. invalid_grant), any explicit token upsert
                 // should re-enable it (user manually updated credentials in the UI).
                 if account.disabled
@@ -272,6 +278,7 @@ pub fn upsert_account(
                 account.provider = provider;
                 account.auth_type = auth_type;
                 account.base_url = base_url;
+                account.supported_models = supported_models;
                 save_account(&account)?;
                 
                 // 同步更新索引中的 name
@@ -287,7 +294,7 @@ pub fn upsert_account(
     
     // 不存在则添加
     drop(_lock);
-    add_account(email, name, token, provider, auth_type, base_url)
+    add_account(email, name, token, provider, auth_type, base_url, supported_models)
 }
 
 /// 删除账号
@@ -545,6 +552,7 @@ pub async fn fetch_quota_with_retry(account: &mut Account) -> crate::error::AppR
             account.provider.clone(),
             account.auth_type.clone(),
             account.base_url.clone(),
+            account.supported_models.clone(),
         )
         .map_err(AppError::Account)?;
     }
@@ -566,6 +574,7 @@ pub async fn fetch_quota_with_retry(account: &mut Account) -> crate::error::AppR
                     account.provider.clone(),
                     account.auth_type.clone(),
                     account.base_url.clone(),
+                    account.supported_models.clone(),
                 ) {
                      modules::logger::log_warn(&format!("保存用户名失败: {}", e));
                 }
@@ -591,6 +600,7 @@ pub async fn fetch_quota_with_retry(account: &mut Account) -> crate::error::AppR
                 account.provider.clone(),
                 account.auth_type.clone(),
                 account.base_url.clone(),
+                account.supported_models.clone(),
             ) {
                 modules::logger::log_warn(&format!("同步保存 project_id 失败: {}", e));
             }
@@ -649,6 +659,7 @@ pub async fn fetch_quota_with_retry(account: &mut Account) -> crate::error::AppR
                     account.provider.clone(),
                     account.auth_type.clone(),
                     account.base_url.clone(),
+                    account.supported_models.clone(),
                 )
                 .map_err(AppError::Account)?;
                 
@@ -667,6 +678,7 @@ pub async fn fetch_quota_with_retry(account: &mut Account) -> crate::error::AppR
                             account.provider.clone(),
                             account.auth_type.clone(),
                             account.base_url.clone(),
+                            account.supported_models.clone(),
                         );
                     }
                 }

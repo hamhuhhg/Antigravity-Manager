@@ -16,7 +16,8 @@ interface AccountState {
         refreshToken: string,
         provider?: string,
         authType?: string,
-        baseUrl?: string
+        baseUrl?: string,
+        supportedModels?: string[]
     ) => Promise<void>;
     deleteAccount: (accountId: string) => Promise<void>;
     deleteAccounts: (accountIds: string[]) => Promise<void>;
@@ -69,11 +70,12 @@ export const useAccountStore = create<AccountState>((set, get) => ({
         refreshToken: string,
         provider?: string,
         authType?: string,
-        baseUrl?: string
+        baseUrl?: string,
+        supportedModels?: string[]
     ) => {
         set({ loading: true, error: null });
         try {
-            await accountService.addAccount(email, refreshToken, provider, authType, baseUrl);
+            await accountService.addAccount(email, refreshToken, provider, authType, baseUrl, supportedModels);
             await get().fetchAccounts();
             set({ loading: false });
         } catch (error) {

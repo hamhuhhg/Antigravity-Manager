@@ -20,11 +20,13 @@
         "info": "提示",
         "details": "详情",
         "clear": "清除",
+        "select_all": "全选",
         "prev_page": "上一页",
         "next_page": "下一页",
         "pagination_info": "显示第 {{start}} 到 {{end}} 条，共 {{total}} 条",
         "per_page": "每页",
         "items": "条",
+        "models": "个模型",
         "accounts": "个账号"
     },
     "nav": {
@@ -45,6 +47,8 @@
         "quota_sufficient": "✓ 配额充足",
         "quota_low": "⚠ 配额较低",
         "quota_desc": "配额 < 20%",
+        "discovered_models": "发现模型总数",
+        "discovered_models_desc": "全账号唯一可用模型数",
         "current_account": "当前账号",
         "switch_account": "切换账号",
         "no_active_account": "暂无活跃账号",
@@ -97,7 +101,8 @@
         "switch_to": "切换到此账号",
         "actions": "操作",
         "details": {
-            "title": "配额详情"
+            "title": "配额详情",
+            "supported_models": "支持模型"
         },
         "add": {
             "title": "添加新账号",
@@ -358,7 +363,9 @@
                     "from_placeholder": "例如：claude-opus-4-5-thinking",
                     "to_placeholder": "例如：glm-4.7",
                     "add_rule": "添加",
-                    "empty": "未配置任何覆盖规则。"
+                    "empty": "未配置任何覆盖规则。",
+                    "refresh_success": "拉取模型成功，共 {{count}} 个",
+                    "refresh_fail": "拉取模型失败"
                 },
                 "modes": {
                     "off": "关闭",
@@ -447,7 +454,8 @@
             "pro_image_1_1": "图片生成 (1:1)",
             "claude_sonnet": "代码推理",
             "claude_sonnet_thinking": "思维链",
-            "claude_opus_thinking": "最强思维"
+            "claude_opus_thinking": "最强思维",
+            "custom_discovered": "自定义发现模型"
         },
         "mapping": {
             "title": "Claude Code 模型映射",
@@ -496,6 +504,10 @@
                 "gpt_5": {
                     "name": "GPT-5 系列",
                     "desc": "GPT-5.1, GPT-5.2 xhigh"
+                },
+                "custom": {
+                    "name": "已发现模型/自定义",
+                    "desc": "从账号动态发现的可用模型"
                 }
             },
             "expert_title": "专家精确映射 (Expert Custom Routing)",
@@ -506,7 +518,11 @@
             "current_list": "当前映射列表 (Custom List)",
             "no_custom_mapping": "暂无自定义精确映射",
             "gemini3_only_warning": "⚠️ 仅支持 Gemini 3 系列",
-            "default_suffix": "（默认）"
+            "default_suffix": "（默认）",
+            "no_custom_accounts": "未找到配置了 Base URL 的自定义账号",
+            "refresh_custom": "发现模型",
+            "refresh_custom_tooltip": "从所有自定义账号发现可用模型",
+            "refresh_custom_success": "从自定义账号发现 {{count}} 个模型"
         },
         "examples": {
             "title": "使用示例"

@@ -1,4 +1,4 @@
-import { ArrowRightLeft, RefreshCw, Trash2, Download, Info, Lock, Ban, Diamond, Gem, Circle, Clock, ToggleLeft, ToggleRight } from 'lucide-react';
+import { ArrowRightLeft, RefreshCw, Trash2, Download, Info, Lock, Ban, Diamond, Gem, Circle, Clock, ToggleLeft, ToggleRight, Cpu } from 'lucide-react';
 import { Account } from '../../types/account';
 import { getQuotaColor, formatTimeRemaining, getTimeRemainingColor } from '../../utils/format';
 import { cn } from '../../utils/cn';
@@ -121,16 +121,24 @@ function AccountCard({ account, selected, onSelect, isCurrent, isRefreshing, isS
                                 }
                             })()}
                             {account.provider && (
-                                <span className={cn(
-                                    "px-1.5 py-0.5 rounded-md text-[9px] font-bold shadow-sm border",
-                                    account.provider === 'google' && "bg-blue-50 text-blue-600 border-blue-100 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-900/30",
-                                    account.provider === 'openai' && "bg-emerald-50 text-emerald-600 border-emerald-100 dark:bg-emerald-900/20 dark:text-emerald-400 dark:border-emerald-900/30",
-                                    account.provider === 'anthropic' && "bg-orange-50 text-orange-600 border-orange-100 dark:bg-orange-900/20 dark:text-orange-400 dark:border-orange-900/30",
-                                    account.provider === 'groq' && "bg-rose-50 text-rose-600 border-rose-100 dark:bg-rose-900/20 dark:text-rose-400 dark:border-rose-900/30",
-                                    account.provider === 'custom' && "bg-gray-50 text-gray-600 border-gray-100 dark:bg-gray-900/20 dark:text-gray-400 dark:border-gray-900/30",
-                                )}>
-                                    {account.provider.toUpperCase()}
-                                </span>
+                                <div className="flex items-center gap-1">
+                                    <span className={cn(
+                                        "px-1.5 py-0.5 rounded-md text-[9px] font-bold shadow-sm border",
+                                        account.provider === 'google' && "bg-blue-50 text-blue-600 border-blue-100 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-900/30",
+                                        account.provider === 'openai' && "bg-emerald-50 text-emerald-600 border-emerald-100 dark:bg-emerald-900/20 dark:text-emerald-400 dark:border-emerald-900/30",
+                                        account.provider === 'anthropic' && "bg-orange-50 text-orange-600 border-orange-100 dark:bg-orange-900/20 dark:text-orange-400 dark:border-orange-900/30",
+                                        account.provider === 'groq' && "bg-rose-50 text-rose-600 border-rose-100 dark:bg-rose-900/20 dark:text-rose-400 dark:border-rose-900/30",
+                                        account.provider === 'custom' && "bg-gray-50 text-gray-600 border-gray-100 dark:bg-gray-900/20 dark:text-gray-400 dark:border-gray-900/30",
+                                    )}>
+                                        {account.provider.toUpperCase()}
+                                    </span>
+                                    {account.supported_models && account.supported_models.length > 0 && (
+                                        <span className="px-1.5 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 text-[9px] font-bold shadow-sm border border-indigo-100 dark:border-indigo-900/30 flex items-center gap-1">
+                                            <Cpu className="w-2.5 h-2.5" />
+                                            {account.supported_models.length} {t('common.models').toUpperCase()}
+                                        </span>
+                                    )}
+                                </div>
                             )}
                         </div>
                     </div>

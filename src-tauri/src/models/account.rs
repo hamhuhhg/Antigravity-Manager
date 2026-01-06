@@ -62,6 +62,9 @@ pub struct Account {
     /// Unix timestamp when the proxy was disabled.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub proxy_disabled_at: Option<i64>,
+    /// Models supported by this account (primarily for custom providers)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub supported_models: Option<Vec<String>>,
     pub created_at: i64,
     pub last_used: i64,
 }

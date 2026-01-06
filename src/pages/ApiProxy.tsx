@@ -22,12 +22,16 @@ import {
     ArrowRight,
     Trash2,
     Layers,
-    Activity
+    Activity,
+    Globe,
+    Loader2
 } from 'lucide-react';
 import { AppConfig, ProxyConfig, StickySessionConfig } from '../types/config';
 import HelpTooltip from '../components/common/HelpTooltip';
 import ModalDialog from '../components/common/ModalDialog';
 import { showToast } from '../components/common/ToastContainer';
+import * as accountService from '../services/accountService';
+import { useAccountStore } from '../stores/useAccountStore';
 
 interface ProxyStatus {
     running: boolean;
@@ -129,7 +133,31 @@ export default function ApiProxy() {
     const { t } = useTranslation();
     const navigate = useNavigate();
 
-    const models = [
+
+
+    const [status, setStatus] = useState<ProxyStatus>({
+        running: false,
+        port: 0,
+        base_url: '',
+        active_accounts: 0,
+    });
+
+    const [appConfig, setAppConfig] = useState<AppConfig | null>(null);
+    const [loading, setLoading] = useState(false);
+    const [copied, setCopied] = useState<string | null>(null);
+    const [selectedProtocol, setSelectedProtocol] = useState<'openai' | 'anthropic' | 'gemini'>('openai');
+    const [selectedModelId, setSelectedModelId] = useState('gemini-3-flash');
+    const [zaiAvailableModels, setZaiAvailableModels] = useState<string[]>([]);
+    const [zaiModelsLoading, setZaiModelsLoading] = useState(false);
+    const [, setZaiModelsError] = useState<string | null>(null);
+    const [zaiNewMappingFrom, setZaiNewMappingFrom] = useState('');
+    const [zaiNewMappingTo, setZaiNewMappingTo] = useState('');
+    const [dynamicModels, setDynamicModels] = useState<string[]>([]);
+    const [isRefreshingCustom, setIsRefreshingCustom] = useState(false);
+
+    const { accounts, fetchAccounts } = useAccountStore();
+
+    const models = useMemo(() => [
         // Gemini 3 Series
         {
             id: 'gemini-3-flash',
@@ -143,6 +171,12 @@ export default function ApiProxy() {
             desc: t('proxy.model.pro_high'),
             icon: <Cpu size={16} />
         },
+        ...dynamicModels.map(m => ({
+            id: m,
+            name: m,
+            desc: t('proxy.model.custom_discovered') || 'Custom Discovered Model',
+            icon: <Globe size={16} />
+        })),
         {
             id: 'gemini-3-pro-low',
             name: 'Gemini 3 Pro Low',
@@ -201,25 +235,7 @@ export default function ApiProxy() {
             desc: t('proxy.model.claude_opus_thinking'),
             icon: <Cpu size={16} />
         }
-    ];
-
-    const [status, setStatus] = useState<ProxyStatus>({
-        running: false,
-        port: 0,
-        base_url: '',
-        active_accounts: 0,
-    });
-
-    const [appConfig, setAppConfig] = useState<AppConfig | null>(null);
-    const [loading, setLoading] = useState(false);
-    const [copied, setCopied] = useState<string | null>(null);
-    const [selectedProtocol, setSelectedProtocol] = useState<'openai' | 'anthropic' | 'gemini'>('openai');
-    const [selectedModelId, setSelectedModelId] = useState('gemini-3-flash');
-    const [zaiAvailableModels, setZaiAvailableModels] = useState<string[]>([]);
-    const [zaiModelsLoading, setZaiModelsLoading] = useState(false);
-    const [, setZaiModelsError] = useState<string | null>(null);
-    const [zaiNewMappingFrom, setZaiNewMappingFrom] = useState('');
-    const [zaiNewMappingTo, setZaiNewMappingTo] = useState('');
+    ], [t, dynamicModels]);
 
     // Modal states
     const [isResetConfirmOpen, setIsResetConfirmOpen] = useState(false);
@@ -227,21 +243,43 @@ export default function ApiProxy() {
     const [isClearBindingsConfirmOpen, setIsClearBindingsConfirmOpen] = useState(false);
 
     const zaiModelOptions = useMemo(() => {
-        const unique = new Set(zaiAvailableModels);
+        const unique = new Set([...zaiAvailableModels, ...dynamicModels]);
         return Array.from(unique).sort();
-    }, [zaiAvailableModels]);
+    }, [zaiAvailableModels, dynamicModels]);
 
     const zaiModelMapping = useMemo(() => {
         return appConfig?.proxy.zai?.model_mapping || {};
     }, [appConfig?.proxy.zai?.model_mapping]);
 
-    // 初始化加载
     useEffect(() => {
         loadConfig();
         loadStatus();
+        fetchAccounts();
         const interval = setInterval(loadStatus, 3000);
         return () => clearInterval(interval);
     }, []);
+
+    // Load available models from config when it's loaded
+    useEffect(() => {
+        if (appConfig?.proxy.zai?.available_models) {
+            setZaiAvailableModels(appConfig.proxy.zai.available_models);
+        }
+    }, [appConfig?.proxy.zai?.available_models]);
+
+    // Aggregated list of all discovered models across all accounts and z.ai
+    useEffect(() => {
+        const uniqueModels = new Set<string>();
+        // Add discovered models from accounts
+        accounts.forEach(acc => {
+            if (acc.supported_models) {
+                acc.supported_models.forEach(m => uniqueModels.add(m));
+            }
+        });
+        // Add models from z.ai if available
+        zaiAvailableModels.forEach(m => uniqueModels.add(m));
+
+        setDynamicModels(Array.from(uniqueModels).sort());
+    }, [accounts, zaiAvailableModels]);
 
     const loadConfig = async () => {
         try {
@@ -403,17 +441,72 @@ export default function ApiProxy() {
         setZaiModelsLoading(true);
         setZaiModelsError(null);
         try {
-            const models = await invoke<string[]>('fetch_zai_models', {
-                zai: appConfig.proxy.zai,
-                upstreamProxy: appConfig.proxy.upstream_proxy,
-                requestTimeout: appConfig.proxy.request_timeout,
-            });
+            const models = await accountService.discoverModels(
+                appConfig.proxy.zai.base_url,
+                appConfig.proxy.zai.api_key,
+                appConfig.proxy.upstream_proxy,
+                appConfig.proxy.request_timeout || 30
+            );
             setZaiAvailableModels(models);
+
+            // Persist the discovered models to config
+            if (appConfig) {
+                const newConfig = {
+                    ...appConfig,
+                    proxy: {
+                        ...appConfig.proxy,
+                        zai: {
+                            ...appConfig.proxy.zai!,
+                            available_models: models
+                        }
+                    }
+                };
+                saveConfig(newConfig);
+            }
+
+            showToast(t('proxy.config.zai.models.refresh_success', { count: models.length }), 'success');
         } catch (error: any) {
             console.error('Failed to fetch z.ai models:', error);
             setZaiModelsError(error.toString());
+            showToast(`${t('proxy.config.zai.models.refresh_fail')}: ${error}`, 'error');
         } finally {
             setZaiModelsLoading(false);
+        }
+    };
+
+    const refreshCustomModels = async () => {
+        setIsRefreshingCustom(true);
+        try {
+            // Find all custom accounts and refresh them
+            const customAccounts = accounts.filter(a => a.auth_type === 'apikey' && a.base_url);
+            if (customAccounts.length === 0) {
+                showToast(t('proxy.router.no_custom_accounts') || 'No custom accounts with base URL found', 'info');
+                return;
+            }
+
+            let totalDiscovered = 0;
+            for (const acc of customAccounts) {
+                try {
+                    const models = await accountService.discoverModels(
+                        acc.base_url!,
+                        acc.token.refresh_token || '',
+                        appConfig?.proxy.upstream_proxy,
+                        appConfig?.proxy.request_timeout || 30
+                    );
+                    await accountService.updateAccountModels(acc.id, models);
+                    totalDiscovered += models.length;
+                } catch (e) {
+                    console.error(`Failed to refresh models for account ${acc.email}:`, e);
+                }
+            }
+
+            await fetchAccounts();
+            showToast(t('proxy.router.refresh_custom_success', { count: totalDiscovered }) || `Refreshed ${totalDiscovered} models`, 'success');
+        } catch (error) {
+            console.error('Failed to refresh custom models:', error);
+            showToast(`${t('common.error')}: ${error}`, 'error');
+        } finally {
+            setIsRefreshingCustom(false);
         }
     };
 
@@ -1299,6 +1392,13 @@ print(response.text)`;
                                                     <option value="gemini-2.5-flash-thinking">gemini-2.5-flash-thinking</option>
                                                     <option value="gemini-2.5-flash-lite">gemini-2.5-flash-lite</option>
                                                 </optgroup>
+                                                {dynamicModels.length > 0 && (
+                                                    <optgroup label={t('proxy.router.groups.custom.name')}>
+                                                        {dynamicModels.map(m => (
+                                                            <option key={m} value={m}>{m}</option>
+                                                        ))}
+                                                    </optgroup>
+                                                )}
                                             </select>
                                         </div>
 
@@ -1335,6 +1435,13 @@ print(response.text)`;
                                                     <option value="gemini-2.5-flash-thinking">gemini-2.5-flash-thinking</option>
                                                     <option value="gemini-2.5-flash-lite">gemini-2.5-flash-lite</option>
                                                 </optgroup>
+                                                {dynamicModels.length > 0 && (
+                                                    <optgroup label={t('proxy.router.groups.custom.name')}>
+                                                        {dynamicModels.map(m => (
+                                                            <option key={m} value={m}>{m}</option>
+                                                        ))}
+                                                    </optgroup>
+                                                )}
                                             </select>
                                         </div>
 
@@ -1360,6 +1467,13 @@ print(response.text)`;
                                                     <option value="gemini-3-pro-low">gemini-3-pro-low (均衡)</option>
                                                     <option value="gemini-3-flash">gemini-3-flash (快速)</option>
                                                 </optgroup>
+                                                {dynamicModels.length > 0 && (
+                                                    <optgroup label={t('proxy.router.groups.custom.name')}>
+                                                        {dynamicModels.map(m => (
+                                                            <option key={m} value={m}>{m}</option>
+                                                        ))}
+                                                    </optgroup>
+                                                )}
                                             </select>
                                             <p className="mt-1 text-[9px] text-indigo-500">{t('proxy.router.gemini3_only_warning')}</p>
                                         </div>
@@ -1386,6 +1500,13 @@ print(response.text)`;
                                                     <option value="gemini-3-pro-high">gemini-3-pro-high (高质量)</option>
                                                     <option value="gemini-3-pro-low">gemini-3-pro-low (均衡)</option>
                                                 </optgroup>
+                                                {dynamicModels.length > 0 && (
+                                                    <optgroup label={t('proxy.router.groups.custom.name')}>
+                                                        {dynamicModels.map(m => (
+                                                            <option key={m} value={m}>{m}</option>
+                                                        ))}
+                                                    </optgroup>
+                                                )}
                                             </select>
                                             <p className="mt-1 text-[9px] text-emerald-600">{t('proxy.router.gemini3_only_warning')}</p>
                                         </div>
@@ -1412,6 +1533,13 @@ print(response.text)`;
                                                     <option value="gemini-3-pro-high">gemini-3-pro-high (高质量)</option>
                                                     <option value="gemini-3-pro-low">gemini-3-pro-low (均衡)</option>
                                                 </optgroup>
+                                                {dynamicModels.length > 0 && (
+                                                    <optgroup label={t('proxy.router.groups.custom.name')}>
+                                                        {dynamicModels.map(m => (
+                                                            <option key={m} value={m}>{m}</option>
+                                                        ))}
+                                                    </optgroup>
+                                                )}
                                             </select>
                                             <p className="mt-1 text-[9px] text-amber-600">{t('proxy.router.gemini3_only_warning')}</p>
                                         </div>
@@ -1424,6 +1552,15 @@ print(response.text)`;
                                         <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2">
                                             <ArrowRight size={14} /> {t('proxy.router.expert_title')}
                                         </h3>
+                                        <button
+                                            onClick={refreshCustomModels}
+                                            disabled={isRefreshingCustom}
+                                            className="btn btn-ghost btn-xs gap-1.5 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/10"
+                                            title={t('proxy.router.refresh_custom_tooltip') || 'Discover models from custom accounts'}
+                                        >
+                                            {isRefreshingCustom ? <Loader2 className="w-3 h-3 animate-spin" /> : <Globe size={12} />}
+                                            {t('proxy.router.refresh_custom') || 'Discover Models'}
+                                        </button>
                                     </div>
 
                                     {/* 💡 Haiku 优化提示 */}
@@ -1456,15 +1593,52 @@ print(response.text)`;
                                                 <input
                                                     id="custom-key"
                                                     type="text"
+                                                    list="source-models"
                                                     placeholder="Original (e.g. gpt-4)"
                                                     className="input input-xs input-bordered w-full font-mono text-[11px] bg-white dark:bg-base-100 border border-gray-200 dark:border-gray-700 shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all placeholder:text-gray-400"
                                                 />
+                                                <datalist id="source-models">
+                                                    <optgroup label="Common Models">
+                                                        <option value="gpt-4" />
+                                                        <option value="gpt-4o" />
+                                                        <option value="gpt-4o-mini" />
+                                                        <option value="claude-3-5-sonnet-20240620" />
+                                                        <option value="claude-3-5-sonnet-20241022" />
+                                                        <option value="claude-3-opus-20240229" />
+                                                        <option value="claude-3-haiku-20240307" />
+                                                    </optgroup>
+                                                    {dynamicModels.length > 0 && (
+                                                        <optgroup label={t('proxy.router.groups.custom.name')}>
+                                                            {dynamicModels.map(m => (
+                                                                <option key={m} value={m} />
+                                                            ))}
+                                                        </optgroup>
+                                                    )}
+                                                </datalist>
                                                 <input
                                                     id="custom-val"
                                                     type="text"
+                                                    list="available-models"
                                                     placeholder="Target (e.g. gemini-2.5-pro)"
                                                     className="input input-xs input-bordered w-full font-mono text-[11px] bg-white dark:bg-base-100 border border-gray-200 dark:border-gray-700 shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all placeholder:text-gray-400"
                                                 />
+                                                <datalist id="available-models">
+                                                    <optgroup label="System Models">
+                                                        <option value="gemini-3-pro-high" />
+                                                        <option value="gemini-3-pro-low" />
+                                                        <option value="gemini-3-flash" />
+                                                        <option value="gemini-2.5-pro" />
+                                                        <option value="gemini-2.5-flash" />
+                                                        <option value="gemini-2.5-flash-thinking" />
+                                                    </optgroup>
+                                                    {dynamicModels.length > 0 && (
+                                                        <optgroup label={t('proxy.router.groups.custom.name')}>
+                                                            {dynamicModels.map(m => (
+                                                                <option key={m} value={m} />
+                                                            ))}
+                                                        </optgroup>
+                                                    )}
+                                                </datalist>
                                             </div>
                                             <button
                                                 className="btn btn-xs w-full gap-2 shadow-md hover:shadow-lg transition-all bg-blue-600 hover:bg-blue-700 text-white border-none"

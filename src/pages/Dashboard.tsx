@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import { Users, Sparkles, Bot, AlertTriangle, ArrowRight, Download, RefreshCw } from 'lucide-react';
+import { Users, Sparkles, Bot, AlertTriangle, ArrowRight, Download, RefreshCw, Diamond } from 'lucide-react';
 import { useAccountStore } from '../stores/useAccountStore';
+import { useConfigStore } from '../stores/useConfigStore';
 import CurrentAccount from '../components/dashboard/CurrentAccount';
 import BestAccounts from '../components/dashboard/BestAccounts';
 import AddAccountDialog from '../components/accounts/AddAccountDialog';
@@ -51,6 +52,19 @@ function Dashboard() {
             return gemini < 20 || claude < 20;
         }).length;
 
+        // 计算发现的模型总数 (去重)
+        const allModels = new Set<string>();
+        // Add models from accounts
+        accounts.forEach(a => {
+            if (a.supported_models) {
+                a.supported_models.forEach(m => allModels.add(m));
+            }
+        });
+
+        // Add models from z.ai
+        const zaiModels = useConfigStore.getState().config?.proxy.zai?.available_models || [];
+        zaiModels.forEach((m: string) => allModels.add(m));
+
         return {
             total: accounts.length,
             avgGemini: geminiQuotas.length > 0
@@ -63,6 +77,7 @@ function Dashboard() {
                 ? Math.round(claudeQuotas.reduce((a, b) => a + b, 0) / claudeQuotas.length)
                 : 0,
             lowQuota: lowQuotaCount,
+            totalModels: allModels.size
         };
     }, [accounts]);
 
@@ -185,11 +200,14 @@ function Dashboard() {
                     </div>
                 </div>
 
-                {/* 统计卡片 - 5 columns on medium screens and up */}
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-                    <div className="bg-white dark:bg-base-100 rounded-xl p-4 shadow-sm border border-gray-100 dark:border-base-200">
+                {/* 统计卡片 - 6 columns on medium screens and up */}
+                <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
+                    <div
+                        className="bg-white dark:bg-base-100 rounded-xl p-4 shadow-sm border border-gray-100 dark:border-base-200 hover:border-blue-300 dark:hover:border-blue-700 hover:shadow-md transition-all cursor-pointer group"
+                        onClick={() => navigate('/accounts')}
+                    >
                         <div className="flex items-center justify-between mb-2">
-                            <div className="p-1.5 bg-blue-50 dark:bg-blue-900/20 rounded-md">
+                            <div className="p-1.5 bg-blue-50 dark:bg-blue-900/20 rounded-md group-hover:bg-blue-100 dark:group-hover:bg-blue-800 transition-colors">
                                 <Users className="w-4 h-4 text-blue-500 dark:text-blue-400" />
                             </div>
                         </div>
@@ -242,15 +260,32 @@ function Dashboard() {
                         )}
                     </div>
 
-                    <div className="bg-white dark:bg-base-100 rounded-xl p-4 shadow-sm border border-gray-100 dark:border-base-200">
+                    <div
+                        className="bg-white dark:bg-base-100 rounded-xl p-4 shadow-sm border border-gray-100 dark:border-base-200 hover:border-orange-300 dark:hover:border-orange-700 hover:shadow-md transition-all cursor-pointer group"
+                        onClick={() => navigate('/accounts')}
+                    >
                         <div className="flex items-center justify-between mb-2">
-                            <div className="p-1.5 bg-orange-50 dark:bg-orange-900/20 rounded-md">
+                            <div className="p-1.5 bg-orange-50 dark:bg-orange-900/20 rounded-md group-hover:bg-orange-100 dark:group-hover:bg-orange-800 transition-colors">
                                 <AlertTriangle className="w-4 h-4 text-orange-500 dark:text-orange-400" />
                             </div>
                         </div>
                         <div className="text-2xl font-bold text-gray-900 dark:text-base-content mb-0.5">{stats.lowQuota}</div>
                         <div className="text-xs text-gray-500 dark:text-gray-400">{t('dashboard.low_quota_accounts')}</div>
                         <div className="text-[10px] text-gray-400 dark:text-gray-500 mt-1">{t('dashboard.quota_desc')}</div>
+                    </div>
+
+                    <div
+                        className="bg-white dark:bg-base-100 rounded-xl p-4 shadow-sm border border-gray-100 dark:border-base-200 hover:border-indigo-300 dark:hover:border-indigo-700 hover:shadow-md transition-all cursor-pointer group"
+                        onClick={() => navigate('/accounts')}
+                    >
+                        <div className="flex items-center justify-between mb-2">
+                            <div className="p-1.5 bg-indigo-50 dark:bg-indigo-900/20 rounded-md group-hover:bg-indigo-100 dark:group-hover:bg-indigo-800 transition-colors">
+                                <Diamond className="w-4 h-4 text-indigo-500 dark:text-indigo-400" />
+                            </div>
+                        </div>
+                        <div className="text-2xl font-bold text-gray-900 dark:text-base-content mb-0.5">{stats.totalModels}</div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400">{t('dashboard.discovered_models')}</div>
+                        <div className="text-[10px] text-gray-400 dark:text-gray-500 mt-1">{t('dashboard.discovered_models_desc')}</div>
                     </div>
                 </div>
 

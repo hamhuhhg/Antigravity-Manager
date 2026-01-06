@@ -22,6 +22,7 @@ pub struct ProxyToken {
     pub provider: crate::models::account::ProviderType,
     pub _auth_type: crate::models::account::AuthType,
     pub base_url: Option<String>,
+    pub supported_models: Option<Vec<String>>,
 }
 
 pub struct TokenManager {
@@ -179,6 +180,10 @@ impl TokenManager {
             .and_then(|v| v.as_str())
             .map(|s| s.to_string());
         
+        let supported_models = account.get("supported_models")
+            .and_then(|v| v.as_array())
+            .map(|arr| arr.iter().filter_map(|v| v.as_str()).map(|s| s.to_string()).collect());
+        
         Ok(Some(ProxyToken {
             account_id,
             access_token,
@@ -192,15 +197,32 @@ impl TokenManager {
             provider,
             _auth_type: auth_type,
             base_url,
+            supported_models,
         }))
     }
     
     /// 获取当前可用的 Token（支持粘性会话与智能调度）
-    /// 参数 `quota_group` 用于区分 "claude" vs "gemini"组
-    /// 参数 `force_rotate` 为 true 时将忽略锁定，强制切换账号
-    /// 参数 `session_id` 用于跨请求维持会话粘性
-    pub async fn get_token(&self, quota_group: &str, force_rotate: bool, session_id: Option<&str>) -> Result<ProxyToken, String> {
+    pub async fn get_token(&self, quota_group: &str, force_rotate: bool, session_id: Option<&str>, requested_model: Option<&str>) -> Result<ProxyToken, String> {
         let mut tokens_snapshot: Vec<ProxyToken> = self.tokens.iter().map(|e| e.value().clone()).collect();
+
+        // [Model-Aware Routing] Filter by supported models if applicable
+        if let Some(model) = requested_model {
+            let explicitly_supporting: Vec<ProxyToken> = tokens_snapshot.iter()
+                .filter(|t| t.supported_models.as_ref().map_or(false, |m| m.contains(&model.to_string())))
+                .cloned()
+                .collect();
+            
+            if !explicitly_supporting.is_empty() {
+                // If we found accounts that explicitly support this model, use only them
+                tokens_snapshot = explicitly_supporting;
+            } else {
+                // Otherwise, use accounts that don't specify supported models (standard/Google accounts)
+                tokens_snapshot = tokens_snapshot.into_iter()
+                    .filter(|t| t.supported_models.is_none())
+                    .collect();
+            }
+        }
+
         let total = tokens_snapshot.len();
         if total == 0 {
             return Err("Token pool is empty".to_string());
@@ -570,9 +592,22 @@ impl TokenManager {
         self.session_accounts.remove(session_id);
     }
 
-    /// 清除所有会话的粘性映射
+    /// Clear all session-to-account mappings.
     pub fn clear_all_sessions(&self) {
         self.session_accounts.clear();
+    }
+
+    /// Retrieve all unique models supported across all configured accounts.
+    pub fn get_all_supported_models(&self) -> Vec<String> {
+        let mut models = HashSet::new();
+        for entry in self.tokens.iter() {
+            if let Some(ref m) = entry.value().supported_models {
+                for model in m {
+                    models.insert(model.clone());
+                }
+            }
+        }
+        models.into_iter().collect()
     }
 }
 

@@ -82,6 +82,7 @@ pub fn run() {
             // 账号管理命令
             commands::list_accounts,
             commands::add_account,
+            commands::update_account_models,
             commands::delete_account,
             commands::delete_accounts,
             commands::reorder_accounts,
@@ -122,7 +123,7 @@ pub fn run() {
             commands::proxy::generate_api_key,
             commands::proxy::reload_proxy_accounts,
             commands::proxy::update_model_mapping,
-            commands::proxy::fetch_zai_models,
+            commands::proxy::discover_models,
             commands::proxy::get_proxy_scheduling_config,
             commands::proxy::update_proxy_scheduling_config,
             commands::proxy::clear_proxy_session_bindings,

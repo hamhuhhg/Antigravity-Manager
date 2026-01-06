@@ -37,6 +37,7 @@ import {
     Clock,
     ToggleLeft,
     ToggleRight,
+    Cpu,
 } from 'lucide-react';
 import { Account } from '../../types/account';
 import { useTranslation } from 'react-i18next';
@@ -306,6 +307,13 @@ function AccountRowContent({
                                 );
                             }
                         })()}
+
+                        {account.supported_models && account.supported_models.length > 0 && (
+                            <span className="px-2 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 text-[10px] font-bold shadow-sm border border-indigo-200/50 flex items-center gap-1">
+                                <Cpu className="w-2.5 h-2.5" />
+                                {account.supported_models.length} {t('common.models')}
+                            </span>
+                        )}
                     </div>
                 </div>
             </td>

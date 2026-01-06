@@ -20,11 +20,13 @@
         "info": "Info",
         "details": "Details",
         "clear": "Clear",
+        "select_all": "Select All",
         "prev_page": "Previous",
         "next_page": "Next",
         "pagination_info": "Showing {{start}} to {{end}} of {{total}} entries",
         "per_page": "Per page",
-        "items": "items"
+        "items": "items",
+        "models": "Models"
     },
     "nav": {
         "dashboard": "Dashboard",
@@ -44,6 +46,8 @@
         "quota_sufficient": "Quota Sufficient",
         "quota_low": "Low Quota",
         "quota_desc": "Quota < 20%",
+        "discovered_models": "Discovered Models",
+        "discovered_models_desc": "Unique models from all accounts",
         "current_account": "Current Account",
         "switch_account": "Switch Account",
         "no_active_account": "No Active Account",
@@ -92,7 +96,8 @@
         "switch_to": "Switch to this account",
         "actions": "Actions",
         "details": {
-            "title": "Quota Details"
+            "title": "Quota Details",
+            "supported_models": "Supported Models"
         },
         "add": {
             "title": "Add Account",
@@ -349,7 +354,9 @@
                     "from_placeholder": "e.g. claude-opus-4-5-thinking",
                     "to_placeholder": "e.g. glm-4.7",
                     "add_rule": "Add",
-                    "empty": "No override rules configured."
+                    "empty": "No override rules configured.",
+                    "refresh_success": "Successfully discovered {{count}} models",
+                    "refresh_fail": "Failed to discover models"
                 },
                 "modes": {
                     "off": "Off",
@@ -438,7 +445,8 @@
             "pro_image_1_1": "Image Generation (1:1)",
             "claude_sonnet": "Code Reasoning",
             "claude_sonnet_thinking": "Chain of Thought",
-            "claude_opus_thinking": "Strongest Thinking"
+            "claude_opus_thinking": "Strongest Thinking",
+            "custom_discovered": "Custom Discovered Model"
         },
         "mapping": {
             "title": "Claude Code Model Mapping",
@@ -485,6 +493,10 @@
                 "gpt_5": {
                     "name": "GPT-5 Series",
                     "desc": "GPT-5.1, GPT-5.2 xhigh"
+                },
+                "custom": {
+                    "name": "Discovered Models / Custom",
+                    "desc": "Dynamically discovered models from your accounts"
                 }
             },
             "expert_title": "Expert Custom Routing",
@@ -497,7 +509,11 @@
             "gemini3_only_warning": "⚠️ Gemini 3 series only",
             "default_suffix": " (Default)",
             "original_id": "Original ID",
-            "route_to": "Route To"
+            "route_to": "Route To",
+            "no_custom_accounts": "No custom accounts with base URL found",
+            "refresh_custom": "Discover Models",
+            "refresh_custom_tooltip": "Discover available models from all custom accounts",
+            "refresh_custom_success": "Discovered {{count}} models from custom accounts"
         },
         "multi_protocol": {
             "title": "Multi-Protocol Support",

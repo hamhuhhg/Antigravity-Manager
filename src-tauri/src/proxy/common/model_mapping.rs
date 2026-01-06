@@ -78,6 +78,7 @@ pub async fn get_all_dynamic_models(
     openai_mapping: &tokio::sync::RwLock<std::collections::HashMap<String, String>>,
     custom_mapping: &tokio::sync::RwLock<std::collections::HashMap<String, String>>,
     anthropic_mapping: &tokio::sync::RwLock<std::collections::HashMap<String, String>>,
+    supported_models: Vec<String>,
 ) -> Vec<String> {
     use std::collections::HashSet;
     let mut model_ids = HashSet::new();
@@ -115,7 +116,12 @@ pub async fn get_all_dynamic_models(
         }
     }
 
-    // 5. 确保包含常用的 Gemini/画画模型 ID
+    // 5. 获取所有通过账号发现的模型 (discovered models)
+    for m in supported_models {
+        model_ids.insert(m);
+    }
+
+    // 6. 确保包含常用的 Gemini/画画模型 ID
     model_ids.insert("gemini-3-pro-low".to_string());
     
     // [NEW] Issue #247: Dynamically generate all Image Gen Combinations

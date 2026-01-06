@@ -23,14 +23,16 @@ export async function addAccount(
     refreshToken: string,
     provider?: string,
     authType?: string,
-    baseUrl?: string
+    baseUrl?: string,
+    supportedModels?: string[]
 ): Promise<Account> {
     return await invoke('add_account', {
         email,
         refreshToken,
         provider,
         authType,
-        baseUrl
+        baseUrl,
+        supportedModels
     });
 }
 
@@ -128,4 +130,28 @@ export async function toggleProxyStatus(accountId: string, enable: boolean, reas
  */
 export async function reorderAccounts(accountIds: string[]): Promise<void> {
     return await invoke('reorder_accounts', { accountIds });
+}
+
+export async function discoverModels(
+    baseUrl: string,
+    apiKey: string,
+    upstreamProxy: any,
+    requestTimeout: number
+): Promise<string[]> {
+    return await invoke('discover_models', {
+        baseUrl,
+        apiKey,
+        upstreamProxy,
+        requestTimeout
+    });
+}
+
+export async function updateAccountModels(
+    accountId: string,
+    models: string[]
+): Promise<void> {
+    return await invoke('update_account_models', {
+        accountId,
+        models
+    });
 }

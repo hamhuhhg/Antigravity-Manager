@@ -335,21 +335,19 @@ fn extract_model_ids(value: &serde_json::Value) -> Vec<String> {
     out
 }
 
-/// Fetch available models from the configured z.ai Anthropic-compatible API (`/v1/models`).
+/// Fetch available models from a custom OpenAI-compatible API (typically `/v1/models`).
 #[tauri::command]
-pub async fn fetch_zai_models(
-    zai: crate::proxy::ZaiConfig,
+pub async fn discover_models(
+    base_url: String,
+    api_key: String,
     upstream_proxy: crate::proxy::config::UpstreamProxyConfig,
     request_timeout: u64,
 ) -> Result<Vec<String>, String> {
-    if zai.base_url.trim().is_empty() {
-        return Err("z.ai base_url is empty".to_string());
-    }
-    if zai.api_key.trim().is_empty() {
-        return Err("z.ai api_key is not set".to_string());
+    if base_url.trim().is_empty() {
+        return Err("base_url is empty".to_string());
     }
 
-    let url = join_base_url(&zai.base_url, "/v1/models");
+    let url = join_base_url(&base_url, "/v1/models");
 
     let mut builder = reqwest::Client::builder().timeout(Duration::from_secs(request_timeout.max(5)));
     if upstream_proxy.enabled && !upstream_proxy.url.is_empty() {
@@ -363,8 +361,8 @@ pub async fn fetch_zai_models(
 
     let resp = client
         .get(&url)
-        .header("Authorization", format!("Bearer {}", zai.api_key))
-        .header("x-api-key", zai.api_key)
+        .header("Authorization", format!("Bearer {}", api_key))
+        .header("x-api-key", &api_key)
         .header("anthropic-version", "2023-06-01")
         .header("accept", "application/json")
         .send()
