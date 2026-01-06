@@ -33,3 +33,5 @@ src-tauri/.env
 .env
 .env.*
 environment/
+myapp.key
+myapp.key.pub

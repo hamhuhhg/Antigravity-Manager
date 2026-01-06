@@ -13,16 +13,17 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - platform: "macos-latest"
-            args: "--target aarch64-apple-darwin"
-          - platform: "macos-latest"
-            args: "--target x86_64-apple-darwin"
-          - platform: "macos-latest"
-            args: "--target universal-apple-darwin"
+          # تم إزالة جميع إعدادات macOS من هنا
+          
+          # إعدادات Linux (Intel/AMD64)
           - platform: "ubuntu-22.04"
             args: ""
+          
+          # إعدادات Linux (ARM64) - تأكد أن حسابك يدعم هذا النوع من الـ runners
           - platform: "ubuntu-24.04-arm"
             args: ""
+            
+          # إعدادات Windows
           - platform: "windows-latest"
             args: ""
 
@@ -37,15 +38,14 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libssl-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev patchelf pkg-config libsoup-3.0-dev javascriptcoregtk-4.1 libjavascriptcoregtk-4.1-dev
-          # Tauri 2 可能需要 libnm-dev
+          # Tauri 2 might need libnm-dev
           sudo apt-get install -y libnm-dev xdg-utils
 
       - name: Rust setup
         uses: dtolnay/rust-toolchain@stable
         with:
-          # Install both targets for macOS to allow cross-compilation and universal build
-          # And install Linux ARM target if needed
-          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || (contains(matrix.args, 'aarch64') && 'aarch64-unknown-linux-gnu' || '') }}
+          # تم تبسيط الكود هنا لأننا لم نعد بحاجة لاستهداف macOS
+          targets: ${{ contains(matrix.platform, 'ubuntu') && contains(matrix.args, 'aarch64') && 'aarch64-unknown-linux-gnu' || '' }}
 
       - name: Node.js setup
         uses: actions/setup-node@v4
@@ -60,6 +60,9 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # --- ضع متغيرات البيئة الخاصة بك هنا ---
+          # مثال:
+          # VITE_API_URL: ${{ secrets.VITE_API_URL }}
         with:
           tagName: ${{ github.ref_name }}
           releaseName: "Antigravity Tools ${{ github.ref_name }}"
