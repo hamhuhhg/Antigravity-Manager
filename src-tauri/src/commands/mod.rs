@@ -361,6 +361,7 @@ pub async fn start_oauth_login(app_handle: tauri::AppHandle) -> Result<Account, 
         crate::models::account::ProviderType::Google,
         crate::models::account::AuthType::OAuth2,
         None,
+        None,
     )?;
 
     // 7. 自动触发刷新额度
@@ -429,6 +430,7 @@ pub async fn complete_oauth_login(app_handle: tauri::AppHandle) -> Result<Accoun
         token_data,
         crate::models::account::ProviderType::Google,
         crate::models::account::AuthType::OAuth2,
+        None,
         None,
     )?;
 

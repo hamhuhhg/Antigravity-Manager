@@ -173,6 +173,7 @@ pub async fn import_from_v1() -> Result<Vec<Account>, String> {
                             crate::models::account::ProviderType::Google,
                             crate::models::account::AuthType::OAuth2,
                             None,
+                            None,
                         ) {
                             Ok(acc) => {
                                 crate::modules::logger::log_info(&format!("导入成功: {}", email));
@@ -235,6 +236,7 @@ pub async fn import_from_custom_db_path(path_str: String) -> Result<Account, Str
         token_data,
         crate::models::account::ProviderType::Google,
         crate::models::account::AuthType::OAuth2,
+        None,
         None,
     )
 }

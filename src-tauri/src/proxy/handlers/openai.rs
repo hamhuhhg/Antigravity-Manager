@@ -1060,6 +1060,7 @@ pub async fn handle_images_edits(
 
     // 1. 获取 Upstream
     let upstream = state.upstream.clone();
+    let token_manager = &state.token_manager;
     let proxy_token = match token_manager.get_token("image_gen", false, None, None).await
     {
         Ok(t) => t,
