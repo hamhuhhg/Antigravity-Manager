@@ -175,7 +175,7 @@ pub async fn handle_chat_completions(
             let openai_response = if provider == crate::models::account::ProviderType::Google {
                 transform_openai_response(&gemini_resp)
             } else {
-                gemini_resp // Already in OpenAI format
+                serde_json::from_value(gemini_resp).map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("OpenAI format error: {}", e)))?
             };
             return Ok(Json(openai_response).into_response());
         }
@@ -1060,7 +1060,7 @@ pub async fn handle_images_edits(
     let upstream = state.upstream.clone();
     let token_manager = state.token_manager;
     // Fix: Proper get_token call with correct signature and unwrap (using image_gen quota)
-    let (access_token, project_id, _email) = match token_manager.get_token("image_gen", false, None).await
+    let proxy_token = match token_manager.get_token("image_gen", false, None).await
     {
         Ok(t) => t,
         Err(e) => {
@@ -1070,6 +1070,10 @@ pub async fn handle_images_edits(
             ))
         }
     };
+
+    let access_token = proxy_token.access_token.clone();
+    let project_id = proxy_token.project_id.clone().unwrap_or_default();
+    let _email = proxy_token.email.clone();
 
     // 2. 映射配置
     let mut contents_parts = Vec::new();

@@ -434,7 +434,7 @@ pub async fn switch_account(account_id: &str) -> Result<(), String> {
     db::inject_token(
         &db_path,
         &account.token.access_token,
-        &account.token.refresh_token,
+        account.token.refresh_token.as_deref().unwrap_or(""),
         account.token.expiry_timestamp
     )?;
     
@@ -493,7 +493,7 @@ pub fn export_accounts() -> Result<Vec<(String, String)>, String> {
     let mut exports = Vec::new();
     
     for account in accounts {
-        exports.push((account.email, account.token.refresh_token));
+        exports.push((account.email, account.token.refresh_token.unwrap_or_default()));
     }
     
     Ok(exports)
@@ -604,7 +604,7 @@ pub async fn fetch_quota_with_retry(account: &mut Account) -> crate::error::AppR
                 modules::logger::log_warn(&format!("401 Unauthorized for {}, forcing refresh...", account.email));
                 
                 // 强制刷新
-                let token_res = match oauth::refresh_access_token(&account.token.refresh_token).await {
+                let token_res = match oauth::refresh_access_token(account.token.refresh_token.as_deref().unwrap_or("")).await {
                     Ok(t) => t,
                     Err(e) => {
                         if e.contains("invalid_grant") {
@@ -624,10 +624,10 @@ pub async fn fetch_quota_with_retry(account: &mut Account) -> crate::error::AppR
                 let new_token = TokenData::new(
                     token_res.access_token.clone(),
                     account.token.refresh_token.clone(),
-                    token_res.expires_in,
+                    Some(token_res.expires_in),
                     account.token.email.clone(),
                     account.token.project_id.clone(), // 保留原有 project_id
-                    None, // 添加 None 作为 session_id
+                    None,
                 );
                 
                 // 重新获取用户名

@@ -182,7 +182,7 @@ impl TokenManager {
         Ok(Some(ProxyToken {
             account_id,
             access_token,
-            refresh_token,
+            refresh_token: Some(refresh_token),
             expires_in,
             timestamp,
             email,
@@ -351,7 +351,7 @@ impl TokenManager {
                 tracing::debug!("账号 {} 的 token 即将过期，正在刷新...", token.email);
 
                 // 调用 OAuth 刷新 token
-                match crate::modules::oauth::refresh_access_token(&token.refresh_token).await {
+                match crate::modules::oauth::refresh_access_token(token.refresh_token.as_deref().unwrap_or("")).await {
                     Ok(token_response) => {
                         tracing::debug!("Token 刷新成功！");
 

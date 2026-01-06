@@ -189,15 +189,15 @@ pub async fn ensure_fresh_token(
     
     // 需要刷新
     crate::modules::logger::log_info("Token 即将过期，正在刷新...");
-    let response = refresh_access_token(&current_token.refresh_token).await?;
+    let response = refresh_access_token(current_token.refresh_token.as_deref().unwrap_or("")).await?;
     
     // 构造新 TokenData
     Ok(crate::models::TokenData::new(
         response.access_token,
         current_token.refresh_token.clone(), // 刷新时不一定会返回新的 refresh_token
-        response.expires_in,
+        Some(response.expires_in),
         current_token.email.clone(),
         current_token.project_id.clone(), // 保留原有 project_id
-        None,  // session_id 会在 token_manager 中生成
+        None,
     ))
 }

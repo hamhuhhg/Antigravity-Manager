@@ -343,8 +343,8 @@ pub async fn start_oauth_login(app_handle: tauri::AppHandle) -> Result<Account, 
     // 5. 构造 TokenData
     let token_data = TokenData::new(
         token_res.access_token,
-        refresh_token,
-        token_res.expires_in,
+        Some(refresh_token),
+        Some(token_res.expires_in),
         Some(user_info.email.clone()),
         project_id,
         None,
@@ -412,8 +412,8 @@ pub async fn complete_oauth_login(app_handle: tauri::AppHandle) -> Result<Accoun
     // 5. 构造 TokenData
     let token_data = TokenData::new(
         token_res.access_token,
-        refresh_token,
-        token_res.expires_in,
+        Some(refresh_token),
+        Some(token_res.expires_in),
         Some(user_info.email.clone()),
         project_id,
         None,
@@ -521,7 +521,7 @@ pub async fn sync_account_from_db(app: tauri::AppHandle) -> Result<Option<Accoun
 
     // 3. 对比：如果 Refresh Token 相同，说明账号没变，无需导入
     if let Some(acc) = curr_account {
-        if acc.token.refresh_token == db_refresh_token {
+        if acc.token.refresh_token.as_deref() == Some(db_refresh_token.as_str()) {
             // 账号未变，由于已经是周期性任务，我们可以选择性刷新一下配额，或者直接返回
             // 这里为了节省 API 流量，直接返回
             return Ok(None);
