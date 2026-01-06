@@ -157,21 +157,31 @@ pub async fn import_from_v1() -> Result<Vec<Account>, String> {
                         };
 
                         let token_data = TokenData::new(
-                            access_token, 
-                            refresh_token,
-                            expires_in,
+                            access_token,
+                            Some(refresh_token),
+                            Some(expires_in),
                             Some(email.clone()),
-                            None, // project_id 将在需要时获取
-                            None, // session_id
-                    );
+                            None,
+                            None,
+                        );
                         
                         // 在第153行的get_user_info中已经获取name，但这里是在match语句外，我们巴安全起见使用None
-                        match account::upsert_account(email.clone(), None, token_data) {
+                        match account::upsert_account(
+                            email.clone(),
+                            None,
+                            token_data,
+                            crate::models::account::ProviderType::Google,
+                            crate::models::account::AuthType::OAuth2,
+                            None,
+                        ) {
                             Ok(acc) => {
                                 crate::modules::logger::log_info(&format!("导入成功: {}", email));
                                 imported_accounts.push(acc);
-                            },
-                            Err(e) => crate::modules::logger::log_error(&format!("导入保存失败 {}: {}", email, e)),
+                            }
+                            Err(e) => crate::modules::logger::log_error(&format!(
+                                "导入保存失败 {}: {}",
+                                email, e
+                            )),
                         }
 
                     } else {
@@ -211,15 +221,22 @@ pub async fn import_from_custom_db_path(path_str: String) -> Result<Account, Str
     
     let token_data = TokenData::new(
         token_resp.access_token,
-        refresh_token,
-        token_resp.expires_in,
+        Some(refresh_token),
+        Some(token_resp.expires_in),
         Some(email.clone()),
-        None, // project_id 将在需要时获取
-        None, // session_id 将在 token_manager 中生成
+        None,
+        None,
     );
     
     // 4. 添加或更新账号
-    account::upsert_account(email.clone(), user_info.name, token_data)
+    account::upsert_account(
+        email.clone(),
+        user_info.name,
+        token_data,
+        crate::models::account::ProviderType::Google,
+        crate::models::account::AuthType::OAuth2,
+        None,
+    )
 }
 
 /// 从默认 IDE 数据库导入当前登录账号

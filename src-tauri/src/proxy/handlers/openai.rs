@@ -71,7 +71,7 @@ pub async fn handle_chat_completions(
 
         // 4. 获取 Token (使用准确的 request_type)
         // 关键：在重试尝试 (attempt > 0) 时强制轮换账号
-        let (access_token, project_id, email) = match token_manager
+        let proxy_token = match token_manager
             .get_token(&config.request_type, attempt > 0, Some(&session_id))
             .await
         {
@@ -83,6 +83,11 @@ pub async fn handle_chat_completions(
                 ));
             }
         };
+
+        let access_token = proxy_token.access_token.clone();
+        let email = proxy_token.email.clone();
+        let project_id = proxy_token.project_id.clone().unwrap_or_default();
+        let provider = proxy_token.provider.clone();
 
         info!("✓ Using account: {} (type: {})", email, config.request_type);
 
@@ -96,27 +101,44 @@ pub async fn handle_chat_completions(
 
         // 5. 发送请求
         let list_response = openai_req.stream;
-        let method = if list_response {
-            "streamGenerateContent"
-        } else {
-            "generateContent"
-        };
-        let query_string = if list_response { Some("alt=sse") } else { None };
+        let response = if provider == crate::models::account::ProviderType::Google {
+            let method = if list_response {
+                "streamGenerateContent"
+            } else {
+                "generateContent"
+            };
+            let query_string = if list_response { Some("alt=sse") } else { None };
 
-        let response = match upstream
-            .call_v1_internal(method, &access_token, gemini_body, query_string)
-            .await
-        {
-            Ok(r) => r,
-            Err(e) => {
-                last_error = e.clone();
-                debug!(
-                    "OpenAI Request failed on attempt {}/{}: {}",
-                    attempt + 1,
-                    max_attempts,
-                    e
-                );
-                continue;
+            match upstream
+                .call_v1_internal(method, &access_token, gemini_body, query_string)
+                .await
+            {
+                Ok(r) => r,
+                Err(e) => {
+                    last_error = e.clone();
+                    debug!(
+                        "OpenAI Request failed on attempt {}/{}: {}",
+                        attempt + 1,
+                        max_attempts,
+                        e
+                    );
+                    continue;
+                }
+            }
+        } else {
+            // OpenAI/Groq/Custom (OpenAI-compatible)
+            let base_url = proxy_token.base_url.clone().unwrap_or_else(|| "https://api.openai.com/v1".to_string());
+            let url = format!("{}/chat/completions", base_url.trim_end_matches('/'));
+            
+            let mut headers = reqwest::header::HeaderMap::new();
+            headers.insert(reqwest::header::AUTHORIZATION, reqwest::header::HeaderValue::from_str(&format!("Bearer {}", access_token)).unwrap());
+            
+            match upstream.call_custom(&url, reqwest::Method::POST, headers, serde_json::to_value(&openai_req).unwrap()).await {
+                Ok(r) => r,
+                Err(e) => {
+                    last_error = e.clone();
+                    continue;
+                }
             }
         };
 
@@ -148,7 +170,13 @@ pub async fn handle_chat_completions(
                 .await
                 .map_err(|e| (StatusCode::BAD_GATEWAY, format!("Parse error: {}", e)))?;
 
-            let openai_response = transform_openai_response(&gemini_resp);
+            // If it's already an OpenAI-compatible provider, we might not need transformation
+            // but for now, we assume Google/Gemini format for everything or we check provider.
+            let openai_response = if provider == crate::models::account::ProviderType::Google {
+                transform_openai_response(&gemini_resp)
+            } else {
+                gemini_resp // Already in OpenAI format
+            };
             return Ok(Json(openai_response).into_response());
         }
 
@@ -538,7 +566,7 @@ pub async fn handle_completions(
             &tools_val,
         );
 
-        let (access_token, project_id, email) =
+        let proxy_token =
             match token_manager.get_token(&config.request_type, false, None).await {
                 Ok(t) => t,
                 Err(e) => {
@@ -548,6 +576,11 @@ pub async fn handle_completions(
                     ))
                 }
             };
+
+        let access_token = proxy_token.access_token.clone();
+        let email = proxy_token.email.clone();
+        let project_id = proxy_token.project_id.clone().unwrap_or_default();
+        let provider = proxy_token.provider.clone();
 
         info!("✓ Using account: {} (type: {})", email, config.request_type);
 
@@ -559,21 +592,44 @@ pub async fn handle_completions(
         }
 
         let list_response = openai_req.stream;
-        let method = if list_response {
-            "streamGenerateContent"
-        } else {
-            "generateContent"
-        };
-        let query_string = if list_response { Some("alt=sse") } else { None };
+        let response = if provider == crate::models::account::ProviderType::Google {
+            let method = if list_response {
+                "streamGenerateContent"
+            } else {
+                "generateContent"
+            };
+            let query_string = if list_response { Some("alt=sse") } else { None };
 
-        let response = match upstream
-            .call_v1_internal(method, &access_token, gemini_body, query_string)
-            .await
-        {
-            Ok(r) => r,
-            Err(e) => {
-                last_error = e.clone();
-                continue;
+            match upstream
+                .call_v1_internal(method, &access_token, gemini_body, query_string)
+                .await
+            {
+                Ok(r) => r,
+                Err(e) => {
+                    last_error = e.clone();
+                    debug!(
+                        "Codex Request failed on attempt {}/{}: {}",
+                        _attempt + 1,
+                        max_attempts,
+                        e
+                    );
+                    continue;
+                }
+            }
+        } else {
+            // OpenAI/Groq/Custom
+            let base_url = proxy_token.base_url.clone().unwrap_or_else(|| "https://api.openai.com/v1".to_string());
+            let url = format!("{}/chat/completions", base_url.trim_end_matches('/'));
+            
+            let mut headers = reqwest::header::HeaderMap::new();
+            headers.insert(reqwest::header::AUTHORIZATION, reqwest::header::HeaderValue::from_str(&format!("Bearer {}", access_token)).unwrap());
+            
+            match upstream.call_custom(&url, reqwest::Method::POST, headers, serde_json::to_value(&openai_req).unwrap()).await {
+                Ok(r) => r,
+                Err(e) => {
+                    last_error = e.clone();
+                    continue;
+                }
             }
         };
 
@@ -750,7 +806,7 @@ pub async fn handle_images_generations(
     let upstream = state.upstream.clone();
     let token_manager = state.token_manager;
 
-    let (access_token, project_id, email) = match token_manager.get_token("image_gen", false, None).await
+    let proxy_token = match token_manager.get_token("image_gen", false, None).await
     {
         Ok(t) => t,
         Err(e) => {
@@ -760,6 +816,10 @@ pub async fn handle_images_generations(
             ))
         }
     };
+
+    let access_token = proxy_token.access_token.clone();
+    let email = proxy_token.email.clone();
+    let project_id = proxy_token.project_id.clone().unwrap_or_default();
 
     info!("✓ Using account: {} for image generation", email);
 

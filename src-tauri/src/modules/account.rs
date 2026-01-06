@@ -158,19 +158,33 @@ pub fn list_accounts() -> Result<Vec<Account>, String> {
 }
 
 /// 添加账号
-pub fn add_account(email: String, name: Option<String>, token: TokenData) -> Result<Account, String> {
+pub fn add_account(
+    email: String,
+    name: Option<String>,
+    token: TokenData,
+    provider: crate::models::account::ProviderType,
+    auth_type: crate::models::account::AuthType,
+    base_url: Option<String>,
+) -> Result<Account, String> {
     let _lock = ACCOUNT_INDEX_LOCK.lock().map_err(|e| format!("获取锁失败: {}", e))?;
     let mut index = load_account_index()?;
     
     // 检查是否已存在
-    if index.accounts.iter().any(|s| s.email == email) {
-        return Err(format!("账号已存在: {}", email));
+    if index.accounts.iter().any(|s| s.email == email && s.name == name) { // Use name to distinguish? No, email is better but maybe not unique across providers
+        // For now keep email as primary key but maybe we should allow same email for different providers
+    }
+    
+    if index.accounts.iter().any(|s| s.email == email && load_account(&s.id).map(|a| a.provider == provider).unwrap_or(false)) {
+         return Err(format!("该提供商的账号已存在: {}", email));
     }
     
     // 创建新账号
     let account_id = Uuid::new_v4().to_string();
     let mut account = Account::new(account_id.clone(), email.clone(), token);
     account.name = name.clone();
+    account.provider = provider;
+    account.auth_type = auth_type;
+    account.base_url = base_url;
     
     // 保存账号数据
     save_account(&account)?;
@@ -195,14 +209,29 @@ pub fn add_account(email: String, name: Option<String>, token: TokenData) -> Res
 }
 
 /// 添加或更新账号
-pub fn upsert_account(email: String, name: Option<String>, token: TokenData) -> Result<Account, String> {
+pub fn upsert_account(
+    email: String,
+    name: Option<String>,
+    token: TokenData,
+    provider: crate::models::account::ProviderType,
+    auth_type: crate::models::account::AuthType,
+    base_url: Option<String>,
+) -> Result<Account, String> {
     let _lock = ACCOUNT_INDEX_LOCK.lock().map_err(|e| format!("获取锁失败: {}", e))?;
     let mut index = load_account_index()?;
     
-    // 先找到账号 ID（如果存在）
-    let existing_account_id = index.accounts.iter()
-        .find(|s| s.email == email)
-        .map(|s| s.id.clone());
+    // 先找到账号 ID（如果存在且提供商相同）
+    let mut existing_account_id = None;
+    for summary in &index.accounts {
+        if summary.email == email {
+            if let Ok(acc) = load_account(&summary.id) {
+                if acc.provider == provider {
+                    existing_account_id = Some(summary.id.clone());
+                    break;
+                }
+            }
+        }
+    }
     
     if let Some(account_id) = existing_account_id {
         // 更新现有账号
@@ -212,6 +241,8 @@ pub fn upsert_account(email: String, name: Option<String>, token: TokenData) -> 
                 let old_refresh_token = account.token.refresh_token.clone();
                 account.token = token;
                 account.name = name.clone();
+                account.auth_type = auth_type;
+                account.base_url = base_url;
                 // If an account was previously disabled (e.g. invalid_grant), any explicit token upsert
                 // should re-enable it (user manually updated credentials in the UI).
                 if account.disabled
@@ -238,6 +269,9 @@ pub fn upsert_account(email: String, name: Option<String>, token: TokenData) -> 
                 // 索引存在但文件丢失，重新创建
                 let mut account = Account::new(account_id.clone(), email.clone(), token);
                 account.name = name.clone();
+                account.provider = provider;
+                account.auth_type = auth_type;
+                account.base_url = base_url;
                 save_account(&account)?;
                 
                 // 同步更新索引中的 name
@@ -252,12 +286,8 @@ pub fn upsert_account(email: String, name: Option<String>, token: TokenData) -> 
     }
     
     // 不存在则添加
-    // 注意：这里手动调用 add_account，它也会尝试获取锁，但因为 Mutex 库限制会死锁
-    // 所以我们需要一个不带锁的内部版本，或者重构。简单起见，这里直接展开添加逻辑或不重复加锁
-    
-    // 释放锁，让 add_account 处理
     drop(_lock);
-    add_account(email, name, token)
+    add_account(email, name, token, provider, auth_type, base_url)
 }
 
 /// 删除账号
@@ -508,7 +538,15 @@ pub async fn fetch_quota_with_retry(account: &mut Account) -> crate::error::AppR
         };
         
         account.name = name.clone();
-        upsert_account(account.email.clone(), name, token.clone()).map_err(AppError::Account)?;
+        upsert_account(
+            account.email.clone(),
+            name,
+            token.clone(),
+            account.provider.clone(),
+            account.auth_type.clone(),
+            account.base_url.clone(),
+        )
+        .map_err(AppError::Account)?;
     }
 
     // 0. 补充用户名 (如果 Token 没过期但也没用户名，或者上面没获取到)
@@ -521,7 +559,14 @@ pub async fn fetch_quota_with_retry(account: &mut Account) -> crate::error::AppR
                 modules::logger::log_info(&format!("成功获取用户名: {:?}", display_name));
                 account.name = display_name.clone();
                 // 立即保存
-                if let Err(e) = upsert_account(account.email.clone(), display_name, account.token.clone()) {
+                if let Err(e) = upsert_account(
+                    account.email.clone(),
+                    display_name,
+                    account.token.clone(),
+                    account.provider.clone(),
+                    account.auth_type.clone(),
+                    account.base_url.clone(),
+                ) {
                      modules::logger::log_warn(&format!("保存用户名失败: {}", e));
                 }
             },
@@ -539,7 +584,14 @@ pub async fn fetch_quota_with_retry(account: &mut Account) -> crate::error::AppR
         if project_id.is_some() && *project_id != account.token.project_id {
             modules::logger::log_info(&format!("检测到 project_id 更新 ({}), 正在保存...", account.email));
             account.token.project_id = project_id.clone();
-            if let Err(e) = upsert_account(account.email.clone(), account.name.clone(), account.token.clone()) {
+            if let Err(e) = upsert_account(
+                account.email.clone(),
+                account.name.clone(),
+                account.token.clone(),
+                account.provider.clone(),
+                account.auth_type.clone(),
+                account.base_url.clone(),
+            ) {
                 modules::logger::log_warn(&format!("同步保存 project_id 失败: {}", e));
             }
         }
@@ -590,7 +642,15 @@ pub async fn fetch_quota_with_retry(account: &mut Account) -> crate::error::AppR
                 
                 account.token = new_token.clone();
                 account.name = name.clone();
-                upsert_account(account.email.clone(), name, new_token.clone()).map_err(AppError::Account)?;
+                upsert_account(
+                    account.email.clone(),
+                    name,
+                    new_token.clone(),
+                    account.provider.clone(),
+                    account.auth_type.clone(),
+                    account.base_url.clone(),
+                )
+                .map_err(AppError::Account)?;
                 
                 // 重试查询
                 let retry_result: crate::error::AppResult<(QuotaData, Option<String>)> = modules::fetch_quota(&new_token.access_token, &account.email).await;
@@ -600,7 +660,14 @@ pub async fn fetch_quota_with_retry(account: &mut Account) -> crate::error::AppR
                     if project_id.is_some() && *project_id != account.token.project_id {
                         modules::logger::log_info(&format!("检测到重试后 project_id 更新 ({}), 正在保存...", account.email));
                         account.token.project_id = project_id.clone();
-                        let _ = upsert_account(account.email.clone(), account.name.clone(), account.token.clone());
+                        let _ = upsert_account(
+                            account.email.clone(),
+                            account.name.clone(),
+                            account.token.clone(),
+                            account.provider.clone(),
+                            account.auth_type.clone(),
+                            account.base_url.clone(),
+                        );
                     }
                 }
 

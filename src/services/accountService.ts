@@ -18,8 +18,20 @@ export async function getCurrentAccount(): Promise<Account | null> {
     return await invoke('get_current_account');
 }
 
-export async function addAccount(email: string, refreshToken: string): Promise<Account> {
-    return await invoke('add_account', { email, refreshToken });
+export async function addAccount(
+    email: string,
+    refreshToken: string,
+    provider?: string,
+    authType?: string,
+    baseUrl?: string
+): Promise<Account> {
+    return await invoke('add_account', {
+        _email: email,
+        refreshToken,
+        provider,
+        authType,
+        baseUrl
+    });
 }
 
 export async function deleteAccount(accountId: string): Promise<void> {

@@ -542,7 +542,7 @@ pub async fn handle_messages(
         let session_id = Some(session_id_str.as_str());
 
         let force_rotate_token = attempt > 0;
-        let (access_token, project_id, email) = match token_manager.get_token(&config.request_type, force_rotate_token, session_id).await {
+        let proxy_token = match token_manager.get_token(&config.request_type, force_rotate_token, session_id).await {
             Ok(t) => t,
             Err(e) => {
                 let safe_message = if e.contains("invalid_grant") {
@@ -562,6 +562,11 @@ pub async fn handle_messages(
                 ).into_response();
             }
         };
+
+        let access_token = proxy_token.access_token.clone();
+        let email = proxy_token.email.clone();
+        let project_id = proxy_token.project_id.clone().unwrap_or_default();
+        let provider = proxy_token.provider.clone();
 
         info!("✓ Using account: {} (type: {})", email, config.request_type);
         
@@ -650,22 +655,70 @@ pub async fn handle_messages(
         
     // 4. 上游调用
     let is_stream = request.stream;
-    let method = if is_stream { "streamGenerateContent" } else { "generateContent" };
-    let query = if is_stream { Some("alt=sse") } else { None };
+    
+    let response = if provider == crate::models::account::ProviderType::Google {
+        let method = if is_stream { "streamGenerateContent" } else { "generateContent" };
+        let query = if is_stream { Some("alt=sse") } else { None };
 
-    let response = match upstream.call_v1_internal(
-        method,
-        &access_token,
-        gemini_body,
-        query
-    ).await {
+        match upstream.call_v1_internal(
+            method,
+            &access_token,
+            gemini_body,
+            query
+        ).await {
+                Ok(r) => r,
+                Err(e) => {
+                    last_error = e.clone();
+                    debug!("Request failed on attempt {}/{}: {}", attempt + 1, max_attempts, e);
+                    continue;
+                }
+            }
+    } else {
+        // OpenAI/Anthropic/Groq/Custom
+        // For Claude protocol, we can either map to Gemini (already done in gemini_body) 
+        // OR if it's an Anthropic provider, we should use their native protocol.
+        // For now, let's assume OpenAI compatible or Anthropic.
+        
+        let base_url = proxy_token.base_url.clone().unwrap_or_else(|| {
+            if provider == crate::models::account::ProviderType::Anthropic {
+                "https://api.anthropic.com/v1".to_string()
+            } else {
+                "https://api.openai.com/v1".to_string()
+            }
+        });
+        
+        let url = if provider == crate::models::account::ProviderType::Anthropic {
+            format!("{}/messages", base_url.trim_end_matches('/'))
+        } else {
+            format!("{}/chat/completions", base_url.trim_end_matches('/'))
+        };
+        
+        let mut headers = HeaderMap::new();
+        if provider == crate::models::account::ProviderType::Anthropic {
+            headers.insert("x-api-key", header::HeaderValue::from_str(&access_token).unwrap());
+            headers.insert("anthropic-version", header::HeaderValue::from_static("2023-06-01"));
+            headers.insert(header::CONTENT_TYPE, header::HeaderValue::from_static("application/json"));
+        } else {
+            headers.insert(header::AUTHORIZATION, header::HeaderValue::from_str(&format!("Bearer {}", access_token)).unwrap());
+        }
+        
+        // Use either openai_req or request depending on provider
+        let body_val = if provider == crate::models::account::ProviderType::Anthropic {
+            serde_json::to_value(&request).unwrap()
+        } else {
+            // Need a Claude -> OpenAI mapper here for full support.
+            // For now, return error if it's not Google/Anthropic.
+            return (StatusCode::NOT_IMPLEMENTED, "Claude -> OpenAI mapping not yet implemented").into_response();
+        };
+
+        match upstream.call_custom(&url, axum::http::Method::POST, headers, body_val).await {
             Ok(r) => r,
             Err(e) => {
                 last_error = e.clone();
-                debug!("Request failed on attempt {}/{}: {}", attempt + 1, max_attempts, e);
                 continue;
             }
-        };
+        }
+    };
         
         let status = response.status();
         

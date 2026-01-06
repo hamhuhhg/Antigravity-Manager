@@ -3,8 +3,11 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TokenData {
     pub access_token: String,
-    pub refresh_token: String,
+    #[serde(default)]
+    pub refresh_token: Option<String>,
+    #[serde(default)]
     pub expires_in: i64,
+    #[serde(default)]
     pub expiry_timestamp: i64,
     pub token_type: String,
     pub email: Option<String>,
@@ -18,13 +21,18 @@ pub struct TokenData {
 impl TokenData {
     pub fn new(
         access_token: String,
-        refresh_token: String,
-        expires_in: i64,
+        refresh_token: Option<String>,
+        expires_in: Option<i64>,
         email: Option<String>,
         project_id: Option<String>,
         session_id: Option<String>,
     ) -> Self {
-        let expiry_timestamp = chrono::Utc::now().timestamp() + expires_in;
+        let expires_in = expires_in.unwrap_or(0);
+        let expiry_timestamp = if expires_in > 0 {
+            chrono::Utc::now().timestamp() + expires_in
+        } else {
+            0
+        };
         Self {
             access_token,
             refresh_token,

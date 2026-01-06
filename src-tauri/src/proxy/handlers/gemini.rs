@@ -63,37 +63,56 @@ pub async fn handle_generate(
 
         let config = crate::proxy::mappers::common_utils::resolve_request_config(&model_name, &mapped_model, &tools_val);
 
-        // 4. 获取 Token (使用准确的 request_type)
+        // 4. 获取 Token (使用准确产生 request_type)
         // 提取 SessionId (粘性指纹)
         let session_id = SessionManager::extract_gemini_session_id(&body, &model_name);
 
         // 关键：在重试尝试 (attempt > 0) 时强制轮换账号
-        let (access_token, project_id, email) = match token_manager.get_token(&config.request_type, attempt > 0, Some(&session_id)).await {
+        let proxy_token = match token_manager.get_token(&config.request_type, attempt > 0, Some(&session_id)).await {
             Ok(t) => t,
             Err(e) => {
                 return Err((StatusCode::SERVICE_UNAVAILABLE, format!("Token error: {}", e)));
             }
         };
 
+        let access_token = proxy_token.access_token.clone();
+        let email = proxy_token.email.clone();
+        let project_id = proxy_token.project_id.clone().unwrap_or_default();
+        let provider = proxy_token.provider.clone();
+
         info!("✓ Using account: {} (type: {})", email, config.request_type);
 
-        // 5. 包装请求 (project injection)
-        let wrapped_body = wrap_request(&body, &project_id, &mapped_model);
-
         // 5. 上游调用
-        let query_string = if is_stream { Some("alt=sse") } else { None };
-        let upstream_method = if is_stream { "streamGenerateContent" } else { "generateContent" };
+        let response = if provider == crate::models::account::ProviderType::Google {
+            let upstream_method = if is_stream { "streamGenerateContent" } else { "generateContent" };
+            let query_string = if is_stream { Some("alt=sse") } else { None };
+            let wrapped_body = wrap_request(&body, &project_id, &mapped_model);
 
-        let response = match upstream
-            .call_v1_internal(upstream_method, &access_token, wrapped_body, query_string)
-            .await {
-                Ok(r) => r,
-                Err(e) => {
-                    last_error = e.clone();
-                    debug!("Gemini Request failed on attempt {}/{}: {}", attempt + 1, max_attempts, e);
-                    continue;
+            match upstream
+                .call_v1_internal(upstream_method, &access_token, wrapped_body, query_string)
+                .await {
+                    Ok(r) => r,
+                    Err(e) => {
+                        last_error = e.clone();
+                        debug!("Gemini Request failed on attempt {}/{}: {}", attempt + 1, max_attempts, e);
+                        continue;
+                    }
                 }
-            };
+        } else {
+            // Non-Google provider (OpenAI-compatible expected here if we map them)
+            // But Gemini protocol usually only goes to Google. 
+            // If we have a custom provider, we might want to map Gemini -> OpenAI or just passthrough.
+            // For now, let's assume if it's not Google, it's an OpenAI compatible backend.
+            let base_url = proxy_token.base_url.clone().unwrap_or_else(|| "https://api.openai.com/v1".to_string());
+            let url = format!("{}/chat/completions", base_url.trim_end_matches('/'));
+            
+            let mut headers = reqwest::header::HeaderMap::new();
+            headers.insert(reqwest::header::AUTHORIZATION, reqwest::header::HeaderValue::from_str(&format!("Bearer {}", access_token)).unwrap());
+            
+            // Note: We'd need a Mapper from Gemini -> OpenAI here if we want to support this properly.
+            // For now, let's keep it simple and focus on OpenAI protocol for other providers.
+            return Err((StatusCode::NOT_IMPLEMENTED, "Gemini protocol for non-Google providers is not yet implemented".to_string()));
+        };
 
         let status = response.status();
         if status.is_success() {
@@ -246,7 +265,7 @@ pub async fn handle_get_model(Path(model_name): Path<String>) -> impl IntoRespon
 
 pub async fn handle_count_tokens(State(state): State<AppState>, Path(_model_name): Path<String>, Json(_body): Json<Value>) -> Result<impl IntoResponse, (StatusCode, String)> {
     let model_group = "gemini";
-    let (_access_token, _project_id, _) = state.token_manager.get_token(model_group, false, None).await
+    let _token = state.token_manager.get_token(model_group, false, None).await
         .map_err(|e| (StatusCode::SERVICE_UNAVAILABLE, format!("Token error: {}", e)))?;
     
     Ok(Json(json!({"totalTokens": 0})))

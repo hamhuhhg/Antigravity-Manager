@@ -1,7 +1,13 @@
+export type ProviderType = 'google' | 'openai' | 'anthropic' | 'groq' | 'custom';
+export type AuthType = 'oauth2' | 'apikey';
+
 export interface Account {
     id: string;
     email: string;
     name?: string;
+    provider?: ProviderType;
+    auth_type?: AuthType;
+    base_url?: string;
     token: TokenData;
     quota?: QuotaData;
     disabled?: boolean;
@@ -16,7 +22,7 @@ export interface Account {
 
 export interface TokenData {
     access_token: string;
-    refresh_token: string;
+    refresh_token?: string;
     expires_in: number;
     expiry_timestamp: number;
     token_type: string;

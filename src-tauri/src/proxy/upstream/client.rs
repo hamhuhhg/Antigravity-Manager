@@ -262,6 +262,27 @@ impl UpstreamClient {
 
         Err(last_err.unwrap_or_else(|| "All endpoints failed".to_string()))
     }
+    /// 调用自定义 API (通用方法)
+    pub async fn call_custom(
+        &self,
+        url: &str,
+        method: reqwest::Method,
+        headers: reqwest::header::HeaderMap,
+        body: Value,
+    ) -> Result<Response, String> {
+        let response = self
+            .http_client
+            .request(method, url)
+            .headers(headers)
+            .json(&body)
+            .send()
+            .await;
+
+        match response {
+            Ok(resp) => Ok(resp),
+            Err(e) => Err(format!("Custom HTTP request failed: {}", e)),
+        }
+    }
 }
 
 #[cfg(test)]

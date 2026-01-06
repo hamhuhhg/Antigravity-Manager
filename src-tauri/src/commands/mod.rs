@@ -19,35 +19,60 @@ pub async fn add_account(
     app: tauri::AppHandle,
     _email: String,
     refresh_token: String,
+    provider: Option<crate::models::account::ProviderType>,
+    auth_type: Option<crate::models::account::AuthType>,
+    base_url: Option<String>,
 ) -> Result<Account, String> {
-    // 1. 使用 refresh_token 获取 access_token
-    // 注意：这里我们忽略传入的 _email，而是直接去 Google 获取真实的邮箱
-    let token_res = modules::oauth::refresh_access_token(&refresh_token).await?;
+    let provider = provider.unwrap_or(crate::models::account::ProviderType::Google);
+    let auth_type = auth_type.unwrap_or(crate::models::account::AuthType::OAuth2);
 
-    // 2. 获取用户信息
-    let user_info = modules::oauth::get_user_info(&token_res.access_token).await?;
+    // 1. 获取用户信息和 Token
+    let (email, name, token) = if provider == crate::models::account::ProviderType::Google && auth_type == crate::models::account::AuthType::OAuth2 {
+        // Google OAuth 模式
+        let token_res = modules::oauth::refresh_access_token(&refresh_token).await?;
+        let user_info = modules::oauth::get_user_info(&token_res.access_token).await?;
+        
+        let token = TokenData::new(
+            token_res.access_token,
+            Some(refresh_token),
+            Some(token_res.expires_in),
+            Some(user_info.email.clone()),
+            None,
+            None,
+        );
+        (user_info.email.clone(), user_info.get_display_name(), token)
+    } else {
+        // API Key 模式或其他提供商
+        let token = TokenData::new(
+            refresh_token.clone(), // access_token = refresh_token (API Key)
+            Some(refresh_token),
+            None,
+            Some(_email.clone()),
+            None,
+            None,
+        );
+        (_email, None, token)
+    };
 
-    // 3. 构造 TokenData
-    let token = TokenData::new(
-        token_res.access_token,
-        refresh_token, // 继续使用用户传入的 refresh_token
-        token_res.expires_in,
-        Some(user_info.email.clone()),
-        None, // project_id 将在需要时获取
-        None, // session_id
-    );
-
-    // 4. 使用真实的 email 添加或更新账号
-    let account =
-        modules::upsert_account(user_info.email.clone(), user_info.get_display_name(), token)?;
+    // 2. 添加或更新账号
+    let account = modules::upsert_account(
+        email,
+        name,
+        token,
+        provider,
+        auth_type,
+        base_url,
+    )?;
 
     modules::logger::log_info(&format!("添加账号成功: {}", account.email));
 
-    // 5. 自动触发刷新额度
-    let mut account = account;
-    let _ = internal_refresh_account_quota(&app, &mut account).await;
+    // 3. 自动触发刷新额度 (仅对 Google)
+    if account.provider == crate::models::account::ProviderType::Google {
+        let mut account = account.clone();
+        let _ = internal_refresh_account_quota(&app, &mut account).await;
+    }
 
-    // 6. If proxy is running, reload token pool so changes take effect immediately.
+    // 4. Reload token pool
     let _ = crate::commands::proxy::reload_proxy_accounts(
         app.state::<crate::commands::proxy::ProxyServiceState>(),
     )
@@ -331,6 +356,9 @@ pub async fn start_oauth_login(app_handle: tauri::AppHandle) -> Result<Account, 
         user_info.email.clone(),
         user_info.get_display_name(),
         token_data,
+        crate::models::account::ProviderType::Google,
+        crate::models::account::AuthType::OAuth2,
+        None,
     )?;
 
     // 7. 自动触发刷新额度
@@ -397,6 +425,9 @@ pub async fn complete_oauth_login(app_handle: tauri::AppHandle) -> Result<Accoun
         user_info.email.clone(),
         user_info.get_display_name(),
         token_data,
+        crate::models::account::ProviderType::Google,
+        crate::models::account::AuthType::OAuth2,
+        None,
     )?;
 
     // 7. 自动触发刷新额度

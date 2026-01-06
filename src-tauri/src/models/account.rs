@@ -1,12 +1,47 @@
 use serde::{Deserialize, Serialize};
 use super::{token::TokenData, quota::QuotaData};
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum ProviderType {
+    Google,
+    OpenAI,
+    Anthropic,
+    Groq,
+    Custom,
+}
+
+impl Default for ProviderType {
+    fn default() -> Self {
+        Self::Google
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum AuthType {
+    OAuth2,
+    ApiKey,
+}
+
+impl Default for AuthType {
+    fn default() -> Self {
+        Self::OAuth2
+    }
+}
+
 /// 账号数据结构
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Account {
     pub id: String,
     pub email: String,
     pub name: Option<String>,
+    #[serde(default)]
+    pub provider: ProviderType,
+    #[serde(default)]
+    pub auth_type: AuthType,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub base_url: Option<String>,
     pub token: TokenData,
     pub quota: Option<QuotaData>,
     /// Disabled accounts are ignored by the proxy token pool (e.g. revoked refresh_token -> invalid_grant).
@@ -38,6 +73,9 @@ impl Account {
             id,
             email,
             name: None,
+            provider: ProviderType::Google,
+            auth_type: AuthType::OAuth2,
+            base_url: None,
             token,
             quota: None,
             disabled: false,

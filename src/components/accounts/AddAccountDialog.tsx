@@ -8,7 +8,13 @@ import { open } from '@tauri-apps/plugin-dialog';
 import { request as invoke } from '../../utils/request';
 
 interface AddAccountDialogProps {
-    onAdd: (email: string, refreshToken: string) => Promise<void>;
+    onAdd: (
+        email: string,
+        refreshToken: string,
+        provider?: string,
+        authType?: string,
+        baseUrl?: string
+    ) => Promise<void>;
 }
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
@@ -16,10 +22,16 @@ type Status = 'idle' | 'loading' | 'success' | 'error';
 function AddAccountDialog({ onAdd }: AddAccountDialogProps) {
     const { t } = useTranslation();
     const [isOpen, setIsOpen] = useState(false);
-    const [activeTab, setActiveTab] = useState<'oauth' | 'token' | 'import'>('oauth');
+    const [activeTab, setActiveTab] = useState<'oauth' | 'provider' | 'token' | 'import'>('oauth');
     const [refreshToken, setRefreshToken] = useState('');
     const [oauthUrl, setOauthUrl] = useState('');
     const [oauthUrlCopied, setOauthUrlCopied] = useState(false);
+
+    // Provider State
+    const [selectedProvider, setSelectedProvider] = useState<'openai' | 'anthropic' | 'groq' | 'custom'>('openai');
+    const [apiKey, setApiKey] = useState('');
+    const [providerEmail, setProviderEmail] = useState('');
+    const [customBaseUrl, setCustomBaseUrl] = useState('');
 
     // UI State
     const [status, setStatus] = useState<Status>('idle');
@@ -141,6 +153,9 @@ function AddAccountDialog({ onAdd }: AddAccountDialogProps) {
         setRefreshToken('');
         setOauthUrl('');
         setOauthUrlCopied(false);
+        setApiKey('');
+        setProviderEmail('');
+        setCustomBaseUrl('');
     };
 
     const handleAction = async (
@@ -183,6 +198,41 @@ function AddAccountDialog({ onAdd }: AddAccountDialogProps) {
     };
 
     const handleSubmit = async () => {
+        if (activeTab === 'provider') {
+            if (!apiKey) {
+                setStatus('error');
+                setMessage(t('accounts.add.provider.error_api_key') || 'Please enter an API Key');
+                return;
+            }
+            if (!providerEmail) {
+                setStatus('error');
+                setMessage(t('accounts.add.provider.error_email') || 'Please enter an email/identifier');
+                return;
+            }
+            if (selectedProvider === 'custom' && !customBaseUrl) {
+                setStatus('error');
+                setMessage(t('accounts.add.provider.error_base_url') || 'Please enter a Base URL');
+                return;
+            }
+
+            setStatus('loading');
+            setMessage(t('accounts.add.provider.adding') || 'Adding provider...');
+
+            try {
+                await onAdd(providerEmail, apiKey, selectedProvider, 'apikey', customBaseUrl || undefined);
+                setStatus('success');
+                setMessage(t('accounts.add.provider.success') || 'Provider added successfully!');
+                setTimeout(() => {
+                    setIsOpen(false);
+                    resetState();
+                }, 1500);
+            } catch (error) {
+                setStatus('error');
+                setMessage(`${t('common.error')}: ${error}`);
+            }
+            return;
+        }
+
         if (!refreshToken) {
             setStatus('error');
             setMessage(t('accounts.add.token.error_token'));
@@ -191,7 +241,7 @@ function AddAccountDialog({ onAdd }: AddAccountDialogProps) {
 
         setStatus('loading');
 
-        // 1. 尝试解析输入
+        // ... existing token extraction logic ...
         let tokens: string[] = [];
         const input = refreshToken.trim();
 
@@ -206,11 +256,9 @@ function AddAccountDialog({ onAdd }: AddAccountDialogProps) {
                 }
             }
         } catch (e) {
-            // JSON 解析失败,忽略
             console.debug('JSON parse failed, falling back to regex', e);
         }
 
-        // 2. 如果 JSON 解析没有结果,尝试正则提取 (或者输入不是 JSON)
         if (tokens.length === 0) {
             const regex = /1\/\/[a-zA-Z0-9_\-]+/g;
             const matches = input.match(regex);
@@ -219,12 +267,11 @@ function AddAccountDialog({ onAdd }: AddAccountDialogProps) {
             }
         }
 
-        // 去重
         tokens = [...new Set(tokens)];
 
         if (tokens.length === 0) {
             setStatus('error');
-            setMessage(t('accounts.add.token.error_token')); // 或者提示"未找到有效 Token"
+            setMessage(t('accounts.add.token.error_token'));
             return;
         }
 
@@ -237,13 +284,12 @@ function AddAccountDialog({ onAdd }: AddAccountDialogProps) {
             setMessage(t('accounts.add.token.batch_progress', { current: i + 1, total: tokens.length }));
 
             try {
-                await onAdd("", currentToken);
+                await onAdd("", currentToken, 'google', 'oauth2');
                 successCount++;
             } catch (error) {
                 console.error(`Failed to add token ${i + 1}:`, error);
                 failCount++;
             }
-            // 稍微延迟一下,避免太快
             await new Promise(r => setTimeout(r, 100));
         }
 
@@ -256,12 +302,9 @@ function AddAccountDialog({ onAdd }: AddAccountDialogProps) {
                 resetState();
             }, 1500);
         } else if (successCount > 0) {
-            // 部分成功
-            setStatus('success'); // 还是用绿色,但提示部分失败
+            setStatus('success');
             setMessage(t('accounts.add.token.batch_partial', { success: successCount, fail: failCount }));
-            // 不自动关闭,让用户看到结果
         } else {
-            // 全部失败
             setStatus('error');
             setMessage(t('accounts.add.token.batch_fail'));
         }
@@ -362,7 +405,7 @@ function AddAccountDialog({ onAdd }: AddAccountDialogProps) {
                         <h3 className="font-bold text-lg mb-4">{t('accounts.add.title')}</h3>
 
                         {/* Tab 导航 - 胶囊风格 */}
-                        <div className="bg-gray-100 dark:bg-base-200 p-1 rounded-xl mb-6 grid grid-cols-3 gap-1">
+                        <div className="bg-gray-100 dark:bg-base-200 p-1 rounded-xl mb-6 grid grid-cols-4 gap-1">
                             <button
                                 className={`py-2 px-3 rounded-lg text-sm font-medium transition-all duration-200 ${activeTab === 'oauth'
                                     ? 'bg-white dark:bg-base-100 shadow-sm text-blue-600 dark:text-blue-400'
@@ -371,6 +414,15 @@ function AddAccountDialog({ onAdd }: AddAccountDialogProps) {
                                 onClick={() => setActiveTab('oauth')}
                             >
                                 {t('accounts.add.tabs.oauth')}
+                            </button>
+                            <button
+                                className={`py-2 px-3 rounded-lg text-sm font-medium transition-all duration-200 ${activeTab === 'provider'
+                                    ? 'bg-white dark:bg-base-100 shadow-sm text-blue-600 dark:text-blue-400'
+                                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 hover:bg-gray-200/50 dark:hover:bg-base-300'
+                                    } `}
+                                onClick={() => setActiveTab('provider')}
+                            >
+                                {t('accounts.add.tabs.provider') || 'AI Provider'}
                             </button>
                             <button
                                 className={`py-2 px-3 rounded-lg text-sm font-medium transition-all duration-200 ${activeTab === 'token'
@@ -454,6 +506,71 @@ function AddAccountDialog({ onAdd }: AddAccountDialogProps) {
                                                 </button>
                                             </div>
                                         )}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* AI Provider */}
+                            {activeTab === 'provider' && (
+                                <div className="space-y-4 py-2">
+                                    <div className="space-y-4">
+                                        <div className="grid grid-cols-4 gap-2">
+                                            {(['openai', 'anthropic', 'groq', 'custom'] as const).map(p => (
+                                                <button
+                                                    key={p}
+                                                    className={`py-2 px-1 rounded-lg text-[10px] font-bold uppercase transition-all border ${selectedProvider === p
+                                                        ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800 text-blue-600 dark:text-blue-400 shadow-sm'
+                                                        : 'bg-white dark:bg-base-100 border-gray-200 dark:border-base-300 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-base-200'
+                                                        }`}
+                                                    onClick={() => setSelectedProvider(p)}
+                                                >
+                                                    {p}
+                                                </button>
+                                            ))}
+                                        </div>
+
+                                        <div className="space-y-3">
+                                            <div className="space-y-1">
+                                                <label className="text-xs font-semibold text-gray-700 dark:text-gray-300 pl-1">
+                                                    {t('accounts.add.provider.email_label') || 'Email / Identifier'}
+                                                </label>
+                                                <input
+                                                    type="email"
+                                                    className="input input-bordered w-full text-sm bg-white dark:bg-base-100"
+                                                    placeholder="e.g. user@openai.com"
+                                                    value={providerEmail}
+                                                    onChange={(e) => setProviderEmail(e.target.value)}
+                                                />
+                                            </div>
+
+                                            <div className="space-y-1">
+                                                <label className="text-xs font-semibold text-gray-700 dark:text-gray-300 pl-1">
+                                                    {t('accounts.add.provider.api_key_label') || 'API Key / Token'}
+                                                </label>
+                                                <input
+                                                    type="password"
+                                                    className="input input-bordered w-full text-sm bg-white dark:bg-base-100"
+                                                    placeholder="sk-..."
+                                                    value={apiKey}
+                                                    onChange={(e) => setApiKey(e.target.value)}
+                                                />
+                                            </div>
+
+                                            {selectedProvider === 'custom' && (
+                                                <div className="space-y-1">
+                                                    <label className="text-xs font-semibold text-gray-700 dark:text-gray-300 pl-1">
+                                                        {t('accounts.add.provider.base_url_label') || 'API Base URL'}
+                                                    </label>
+                                                    <input
+                                                        type="text"
+                                                        className="input input-bordered w-full text-sm bg-white dark:bg-base-100"
+                                                        placeholder="https://api.example.com/v1"
+                                                        value={customBaseUrl}
+                                                        onChange={(e) => setCustomBaseUrl(e.target.value)}
+                                                    />
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
                             )}
@@ -544,7 +661,7 @@ function AddAccountDialog({ onAdd }: AddAccountDialogProps) {
                             >
                                 {t('accounts.add.btn_cancel')}
                             </button>
-                            {activeTab === 'token' && (
+                            {(activeTab === 'token' || activeTab === 'provider') && (
                                 <button
                                     className="flex-1 px-4 py-2.5 text-white font-medium rounded-xl shadow-md transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 bg-blue-500 hover:bg-blue-600 focus:ring-blue-500 shadow-blue-100 dark:shadow-blue-900/30 flex justify-center items-center gap-2"
                                     onClick={handleSubmit}

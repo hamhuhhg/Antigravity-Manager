@@ -12,13 +12,16 @@ use crate::proxy::sticky_config::StickySessionConfig;
 pub struct ProxyToken {
     pub account_id: String,
     pub access_token: String,
-    pub refresh_token: String,
+    pub refresh_token: Option<String>,
     pub expires_in: i64,
     pub timestamp: i64,
     pub email: String,
     pub account_path: PathBuf,  // 账号文件路径，用于更新
     pub project_id: Option<String>,
     pub subscription_tier: Option<String>, // "FREE" | "PRO" | "ULTRA"
+    pub provider: crate::models::account::ProviderType,
+    pub auth_type: crate::models::account::AuthType,
+    pub base_url: Option<String>,
 }
 
 pub struct TokenManager {
@@ -163,6 +166,18 @@ impl TokenManager {
             .and_then(|q| q.get("subscription_tier"))
             .and_then(|v| v.as_str())
             .map(|s| s.to_string());
+
+        let provider = account.get("provider")
+            .and_then(|v| serde_json::from_value(v.clone()).ok())
+            .unwrap_or(crate::models::account::ProviderType::Google);
+
+        let auth_type = account.get("auth_type")
+            .and_then(|v| serde_json::from_value(v.clone()).ok())
+            .unwrap_or(crate::models::account::AuthType::OAuth2);
+
+        let base_url = account.get("base_url")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string());
         
         Ok(Some(ProxyToken {
             account_id,
@@ -174,14 +189,17 @@ impl TokenManager {
             account_path: path.clone(),
             project_id,
             subscription_tier,
+            provider,
+            auth_type,
+            base_url,
         }))
     }
     
     /// 获取当前可用的 Token（支持粘性会话与智能调度）
-    /// 参数 `quota_group` 用于区分 "claude" vs "gemini" 组
+    /// 参数 `quota_group` 用于区分 "claude" vs "gemini"组
     /// 参数 `force_rotate` 为 true 时将忽略锁定，强制切换账号
     /// 参数 `session_id` 用于跨请求维持会话粘性
-    pub async fn get_token(&self, quota_group: &str, force_rotate: bool, session_id: Option<&str>) -> Result<(String, String, String), String> {
+    pub async fn get_token(&self, quota_group: &str, force_rotate: bool, session_id: Option<&str>) -> Result<ProxyToken, String> {
         let mut tokens_snapshot: Vec<ProxyToken> = self.tokens.iter().map(|e| e.value().clone()).collect();
         let total = tokens_snapshot.len();
         if total == 0 {
@@ -383,35 +401,35 @@ impl TokenManager {
             }
 
             // 4. 确保有 project_id
-            let project_id = if let Some(pid) = &token.project_id {
-                pid.clone()
-            } else {
-                tracing::debug!("账号 {} 缺少 project_id，尝试获取...", token.email);
-                match crate::proxy::project_resolver::fetch_project_id(&token.access_token).await {
-                    Ok(pid) => {
-                        if let Some(mut entry) = self.tokens.get_mut(&token.account_id) {
-                            entry.project_id = Some(pid.clone());
-                        }
-                        let _ = self.save_project_id(&token.account_id, &pid).await;
-                        pid
-                    }
-                    Err(e) => {
-                        tracing::error!("Failed to fetch project_id for {}: {}", token.email, e);
-                        last_error = Some(format!("Failed to fetch project_id for {}: {}", token.email, e));
-                        attempted.insert(token.account_id.clone());
-
-                        if quota_group != "image_gen" {
-                            let mut last_used = self.last_used_account.lock().await;
-                            if matches!(&*last_used, Some((id, _)) if id == &token.account_id) {
-                                *last_used = None;
+            if token.provider == crate::models::account::ProviderType::Google {
+                if token.project_id.is_none() {
+                    tracing::debug!("账号 {} 缺少 project_id转换后的 token object，尝试获取...", token.email);
+                    match crate::proxy::project_resolver::fetch_project_id(&token.access_token).await {
+                        Ok(pid) => {
+                            if let Some(mut entry) = self.tokens.get_mut(&token.account_id) {
+                                entry.project_id = Some(pid.clone());
                             }
+                            let _ = self.save_project_id(&token.account_id, &pid).await;
+                            token.project_id = Some(pid);
                         }
-                        continue;
+                        Err(e) => {
+                            tracing::error!("Failed to fetch project_id for {}: {}", token.email, e);
+                            last_error = Some(format!("Failed to fetch project_id for {}: {}", token.email, e));
+                            attempted.insert(token.account_id.clone());
+
+                            if quota_group != "image_gen" {
+                                let mut last_used = self.last_used_account.lock().await;
+                                if matches!(&*last_used, Some((id, _)) if id == &token.account_id) {
+                                    *last_used = None;
+                                }
+                            }
+                            continue;
+                        }
                     }
                 }
-            };
+            }
 
-            return Ok((token.access_token, project_id, token.email));
+            return Ok(token);
         }
 
         Err(last_error.unwrap_or_else(|| "All accounts failed".to_string()))

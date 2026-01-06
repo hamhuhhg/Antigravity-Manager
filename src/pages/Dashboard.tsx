@@ -86,8 +86,14 @@ function Dashboard() {
         }
     };
 
-    const handleAddAccount = async (email: string, refreshToken: string) => {
-        await addAccount(email, refreshToken);
+    const handleAddAccount = async (
+        email: string,
+        refreshToken: string,
+        provider?: string,
+        authType?: string,
+        baseUrl?: string
+    ) => {
+        await addAccount(email, refreshToken, provider, authType, baseUrl);
         await fetchAccounts(); // 刷新列表
     };
 
