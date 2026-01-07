@@ -89,6 +89,7 @@ impl Account {
             proxy_disabled_at: None,
             created_at: now,
             last_used: now,
+            supported_models: None,
         }
     }
 
