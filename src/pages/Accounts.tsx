@@ -476,10 +476,11 @@ function Accounts() {
 
             // Let's import accountService dynamically or if it's already available? Not imported.
             // Let's import it.
-            const { accountService } = await import('../services/accountService');
+            // Let's import startOAuthLogin dynamically.
+            const { startOAuthLogin } = await import('../services/accountService');
 
             showToast(t('accounts.reconnecting'), 'info');
-            const authUrl = await accountService.startOAuthLogin();
+            const authUrl = await startOAuthLogin();
 
             // We need to wait for the callback or let the user handle it.
             // Since `accountService.startOAuthLogin` just returns the URL and starts server, dependencies might be needed.
@@ -513,7 +514,7 @@ function Accounts() {
 
             // SO: We just need to trigger the standard Add Account flow.
             // We can open the AddAccountDialog and switch to OAuth tab immediately.
-            setAddAccountDialogOpen(true);
+
 
             // We can pass a prop to AddAccountDialog to auto-start OAuth?
             // That would be ideal.
@@ -524,7 +525,7 @@ function Accounts() {
     };
 
     // We need state to control AddAccountDialog
-    const [addAccountDialogOpen, setAddAccountDialogOpen] = useState(false);
+
 
     return (
         <div className="h-full flex flex-col p-5 gap-4 max-w-7xl mx-auto w-full">
