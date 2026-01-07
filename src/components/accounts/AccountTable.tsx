@@ -62,6 +62,7 @@ interface AccountTableProps {
     onExport: (accountId: string) => void;
     onDelete: (accountId: string) => void;
     onToggleProxy: (accountId: string) => void;
+    onReconnect: (accountId: string) => void;
     /** 拖拽排序回调，当用户完成拖拽时触发 */
     onReorder?: (accountIds: string[]) => void;
 }
@@ -80,6 +81,7 @@ interface SortableRowProps {
     onExport: () => void;
     onDelete: () => void;
     onToggleProxy: () => void;
+    onReconnect: () => void;
 }
 
 interface AccountRowContentProps {
@@ -93,6 +95,7 @@ interface AccountRowContentProps {
     onExport: () => void;
     onDelete: () => void;
     onToggleProxy: () => void;
+    onReconnect: () => void;
 }
 
 // ============================================================================
@@ -146,6 +149,7 @@ function SortableAccountRow({
     onExport,
     onDelete,
     onToggleProxy,
+    onReconnect,
 }: SortableRowProps) {
     const { t } = useTranslation();
     const {
@@ -207,6 +211,7 @@ function SortableAccountRow({
                 onExport={onExport}
                 onDelete={onDelete}
                 onToggleProxy={onToggleProxy}
+                onReconnect={onReconnect}
             />
         </tr>
     );
@@ -227,6 +232,7 @@ function AccountRowContent({
     onExport,
     onDelete,
     onToggleProxy,
+    onReconnect,
 }: AccountRowContentProps) {
     const { t } = useTranslation();
     const geminiProModel = account.quota?.models.find(m => m.name.toLowerCase() === 'gemini-3-pro-high');
@@ -514,6 +520,15 @@ function AccountRowContent({
                     >
                         <Trash2 className="w-3.5 h-3.5" />
                     </button>
+                    {isDisabled && (
+                        <button
+                            className="p-1.5 text-amber-500 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-all animate-pulse"
+                            onClick={(e) => { e.stopPropagation(); onReconnect(); }}
+                            title={t('accounts.reconnect')}
+                        >
+                            <ArrowRightLeft className="w-3.5 h-3.5 rotate-45" />
+                        </button>
+                    )}
                 </div>
             </td>
         </>
@@ -543,6 +558,7 @@ function AccountTable({
     onDelete,
     onToggleProxy,
     onReorder,
+    onReconnect,
 }: AccountTableProps) {
     const { t } = useTranslation();
     const [activeId, setActiveId] = useState<string | null>(null);
@@ -633,6 +649,7 @@ function AccountTable({
                                     onExport={() => onExport(account.id)}
                                     onDelete={() => onDelete(account.id)}
                                     onToggleProxy={() => onToggleProxy(account.id)}
+                                    onReconnect={() => onReconnect(account.id)}
                                 />
                             ))}
                         </tbody>
@@ -670,6 +687,7 @@ function AccountTable({
                                     onExport={() => { }}
                                     onDelete={() => { }}
                                     onToggleProxy={() => { }}
+                                    onReconnect={() => { }}
                                 />
                             </tr>
                         </tbody>

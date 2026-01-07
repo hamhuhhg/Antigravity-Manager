@@ -17,10 +17,11 @@ interface AccountCardProps {
     onExport: () => void;
     onDelete: () => void;
     onToggleProxy: () => void;
+    onReconnect?: () => void;
 }
 
 
-function AccountCard({ account, selected, onSelect, isCurrent, isRefreshing, isSwitching = false, onSwitch, onRefresh, onViewDetails, onExport, onDelete, onToggleProxy }: AccountCardProps) {
+function AccountCard({ account, selected, onSelect, isCurrent, isRefreshing, isSwitching = false, onSwitch, onRefresh, onViewDetails, onExport, onDelete, onToggleProxy, onReconnect }: AccountCardProps) {
     const { t } = useTranslation();
     const geminiProModel = account.quota?.models.find(m => m.name === 'gemini-3-pro-high');
     const geminiFlashModel = account.quota?.models.find(m => m.name === 'gemini-3-flash');
@@ -337,6 +338,15 @@ function AccountCard({ account, selected, onSelect, isCurrent, isRefreshing, isS
                     >
                         <Trash2 className="w-3.5 h-3.5" />
                     </button>
+                    {isDisabled && (
+                        <button
+                            className="p-1.5 text-amber-500 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-all animate-pulse"
+                            onClick={(e) => { e.stopPropagation(); onReconnect?.(); }}
+                            title={t('accounts.reconnect')}
+                        >
+                            <ArrowRightLeft className="w-3.5 h-3.5 rotate-45" />
+                        </button>
+                    )}
                 </div>
             </div>
         </div>

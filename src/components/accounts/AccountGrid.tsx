@@ -14,10 +14,11 @@ interface AccountGridProps {
     onExport: (accountId: string) => void;
     onDelete: (accountId: string) => void;
     onToggleProxy: (accountId: string) => void;
+    onReconnect: (accountId: string) => void;
 }
 
 
-function AccountGrid({ accounts, selectedIds, refreshingIds, onToggleSelect, currentAccountId, switchingAccountId, onSwitch, onRefresh, onViewDetails, onExport, onDelete, onToggleProxy }: AccountGridProps) {
+function AccountGrid({ accounts, selectedIds, refreshingIds, onToggleSelect, currentAccountId, switchingAccountId, onSwitch, onRefresh, onViewDetails, onExport, onDelete, onToggleProxy, onReconnect }: AccountGridProps) {
     if (accounts.length === 0) {
         return (
             <div className="bg-white dark:bg-base-100 rounded-2xl p-12 shadow-sm border border-gray-100 dark:border-base-200 text-center">
@@ -44,6 +45,7 @@ function AccountGrid({ accounts, selectedIds, refreshingIds, onToggleSelect, cur
                     onExport={() => onExport(account.id)}
                     onDelete={() => onDelete(account.id)}
                     onToggleProxy={() => onToggleProxy(account.id)}
+                    onReconnect={() => onReconnect(account.id)}
                 />
             ))}
         </div>

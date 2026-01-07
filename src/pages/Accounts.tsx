@@ -456,6 +456,76 @@ function Accounts() {
         }
     };
 
+    const handleReconnect = async (accountId: string) => {
+        const account = accounts.find(a => a.id === accountId);
+        if (!account) return;
+
+        // Ensure we have the service method available. 
+        // Since we don't have direct access to accountService here, we can use the logic from AddAccountDialog.
+        // Or better, we can invoke the same command directly or show the AddAccountDialog in a special mode.
+        // However, standard flow is:
+        try {
+            // Using the exposed method from accountService (we need to import it or move logic to store)
+            // Ideally we should move startOAuthLogin to useAccountStore or similar, but for now we can import it.
+            // Let's assume we can trigger the AddAccountDialog to open in "reconnect" mode or just start the flow.
+
+            // Re-use logic: Open oauth url.
+            // Actually, we can just call invoke('start_google_oauth', ...)
+            // But we need to handle the callback. 
+            // The cleanest way reusing existing logic is to use accountService.startOAuthLogin() if available.
+
+            // Let's import accountService dynamically or if it's already available? Not imported.
+            // Let's import it.
+            const { accountService } = await import('../services/accountService');
+
+            showToast(t('accounts.reconnecting'), 'info');
+            const authUrl = await accountService.startOAuthLogin();
+
+            // We need to wait for the callback or let the user handle it.
+            // Since `accountService.startOAuthLogin` just returns the URL and starts server, dependencies might be needed.
+            // But `AddAccountDialog` handles the listening.
+            // Maybe it's better to just delete the old account and re-add it? No, we want to keep stats.
+
+            // Alternative: Open the AddAccountDialog and pre-fill or guide user? 
+            // Or better: Just launch the OAuth flow. The callback will be handled by the backend server appearing.
+            // The frontend needs to listen to an event or poll?
+
+            // Let's use invoke directly to start auth, and then listen for the event.
+            // Actually, AddAccountDialog has complex logic for listening. 
+            // A simpler approach: Just show a toast saying "Please find the 'Reconnect' option in Add Account > Google > Reconnect"? 
+            // No, user wants a button.
+
+            // Let's perform a simple re-auth:
+            await invoke('open_url', { url: authUrl });
+
+            // We need a way to capture the NEW token and update THIS account.
+            // This is tricky without a dedicated UI context.
+            // If the user completes the flow, we get a NEW refresh token.
+            // We need to UPDATE the account with the new token.
+
+            // STRATEGY: 
+            // redirect user to AddAccountDialog with a special "reconnect" status?
+            // Or render a "Reconnecting..." modal?
+
+            // Let's update `AddAccountDialog` to support a "Reconnect" mode where it updates a specific ID?
+            // Or just treat it as "Add Account" logic but if email matches, it updates (upsert).
+            // Our backend `upsert_account` already handles this! If email matches, it updates the token!
+
+            // SO: We just need to trigger the standard Add Account flow.
+            // We can open the AddAccountDialog and switch to OAuth tab immediately.
+            setAddAccountDialogOpen(true);
+
+            // We can pass a prop to AddAccountDialog to auto-start OAuth?
+            // That would be ideal.
+        } catch (error) {
+            console.error('Reconnect failed', error);
+            showToast(t('common.error'), 'error');
+        }
+    };
+
+    // We need state to control AddAccountDialog
+    const [addAccountDialogOpen, setAddAccountDialogOpen] = useState(false);
+
     return (
         <div className="h-full flex flex-col p-5 gap-4 max-w-7xl mx-auto w-full">
             {/* 测试按钮 - 在最顶部 */}
@@ -666,6 +736,7 @@ function Accounts() {
                                 onExport={handleExportOne}
                                 onDelete={handleDelete}
                                 onToggleProxy={(id) => handleToggleProxy(id, !!accounts.find(a => a.id === id)?.proxy_disabled)}
+                                onReconnect={handleReconnect}
                                 onReorder={reorderAccounts}
                             />
                         </div>
@@ -685,6 +756,7 @@ function Accounts() {
                             onExport={handleExportOne}
                             onDelete={handleDelete}
                             onToggleProxy={(id) => handleToggleProxy(id, !!accounts.find(a => a.id === id)?.proxy_disabled)}
+                            onReconnect={handleReconnect}
                         />
                     </div>
                 )}
